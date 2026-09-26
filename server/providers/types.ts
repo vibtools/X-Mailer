@@ -41,6 +41,10 @@ export interface EmailPayload {
   headers?: Record<string, string>;
   reply_to?: string;
   attachments?: EmailAttachment[];
+  open_tracking?: boolean;
+  click_tracking?: boolean;
+  track_opens?: boolean;
+  track_clicks?: boolean;
 }
 
 export interface SendResult {

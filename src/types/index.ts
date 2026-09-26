@@ -207,6 +207,18 @@ export interface SiteSettings {
   maintenanceMode: boolean;
   companyName?: string;
   companyAddress?: string;
+
+  // Phase 1: Content Settings & Global Deliverability Defaults
+  defaultUnsubscribeUrl?: string;
+  enableOneClickUnsubscribe?: boolean;
+  enableGlobalUnsubscribe?: boolean;
+  enableResendTracking?: boolean;
+  enableAutoReplyTo?: boolean;
+  defaultSubject?: string;
+  enableDynamicTags?: boolean;
+  enableDeliverabilityScanner?: boolean;
+  enableAttachments?: boolean;
+  enablePlainTextFallback?: boolean;
 }
 
 export type SystemSettings = SiteSettings;

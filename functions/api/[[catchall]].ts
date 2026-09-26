@@ -1781,6 +1781,18 @@ export async function onRequest(context: EventContext): Promise<Response> {
             favicon: "✉️",
             supportEmail: "support@rsender.io",
             maintenanceMode: false,
+            companyName: "Your Company",
+            companyAddress: "123 Business Rd, City, Country",
+            defaultUnsubscribeUrl: "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+            enableOneClickUnsubscribe: true,
+            enableGlobalUnsubscribe: true,
+            enableResendTracking: false,
+            enableAutoReplyTo: true,
+            defaultSubject: "Update regarding your account {name}",
+            enableDynamicTags: true,
+            enableDeliverabilityScanner: true,
+            enableAttachments: true,
+            enablePlainTextFallback: true,
           });
         }
         const r = rows[0];
@@ -1790,27 +1802,88 @@ export async function onRequest(context: EventContext): Promise<Response> {
           favicon: r.favicon || "✉️",
           supportEmail: r.support_email || "support@rsender.io",
           maintenanceMode: r.maintenance_mode || false,
-          companyName: r.company_name || "",
-          companyAddress: r.company_address || "",
+          companyName: r.company_name || "Your Company",
+          companyAddress: r.company_address || "123 Business Rd, City, Country",
+          defaultUnsubscribeUrl: r.default_unsubscribe_url || "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+          enableOneClickUnsubscribe: r.enable_one_click_unsubscribe !== false,
+          enableGlobalUnsubscribe: r.enable_global_unsubscribe !== false,
+          enableResendTracking: r.enable_resend_tracking === true,
+          enableAutoReplyTo: r.enable_auto_reply_to !== false,
+          defaultSubject: r.default_subject || "Update regarding your account {name}",
+          enableDynamicTags: r.enable_dynamic_tags !== false,
+          enableDeliverabilityScanner: r.enable_deliverability_scanner !== false,
+          enableAttachments: r.enable_attachments !== false,
+          enablePlainTextFallback: r.enable_plain_text_fallback !== false,
         });
       }
       if (method === "POST") {
-        const { siteName, siteLogo, favicon, supportEmail, maintenanceMode, companyName, companyAddress } =
-          body;
+        const {
+          siteName,
+          siteLogo,
+          favicon,
+          supportEmail,
+          maintenanceMode,
+          companyName,
+          companyAddress,
+          defaultUnsubscribeUrl,
+          enableOneClickUnsubscribe,
+          enableGlobalUnsubscribe,
+          enableResendTracking,
+          enableAutoReplyTo,
+          defaultSubject,
+          enableDynamicTags,
+          enableDeliverabilityScanner,
+          enableAttachments,
+          enablePlainTextFallback,
+        } = body;
         await runQuery(
           env,
-          `INSERT INTO neon_settings (id, site_name, site_logo, favicon, support_email, maintenance_mode, company_name, company_address, updated_at)
-           VALUES ('default_settings', $1, $2, $3, $4, $5, $6, $7, NOW())
+          `INSERT INTO neon_settings (
+            id, site_name, site_logo, favicon, support_email, maintenance_mode,
+            company_name, company_address, default_unsubscribe_url,
+            enable_one_click_unsubscribe, enable_global_unsubscribe, enable_resend_tracking,
+            enable_auto_reply_to, default_subject, enable_dynamic_tags, enable_deliverability_scanner,
+            enable_attachments, enable_plain_text_fallback, updated_at
+          )
+           VALUES ('default_settings', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
            ON CONFLICT (id) DO UPDATE SET
-             site_name = EXCLUDED.site_name,
-             site_logo = EXCLUDED.site_logo,
-             favicon = EXCLUDED.favicon,
-             support_email = EXCLUDED.support_email,
-             maintenance_mode = EXCLUDED.maintenance_mode,
-             company_name = EXCLUDED.company_name,
-             company_address = EXCLUDED.company_address,
+             site_name = COALESCE(EXCLUDED.site_name, neon_settings.site_name),
+             site_logo = COALESCE(EXCLUDED.site_logo, neon_settings.site_logo),
+             favicon = COALESCE(EXCLUDED.favicon, neon_settings.favicon),
+             support_email = COALESCE(EXCLUDED.support_email, neon_settings.support_email),
+             maintenance_mode = COALESCE(EXCLUDED.maintenance_mode, neon_settings.maintenance_mode),
+             company_name = COALESCE(EXCLUDED.company_name, neon_settings.company_name),
+             company_address = COALESCE(EXCLUDED.company_address, neon_settings.company_address),
+             default_unsubscribe_url = COALESCE(EXCLUDED.default_unsubscribe_url, neon_settings.default_unsubscribe_url),
+             enable_one_click_unsubscribe = COALESCE(EXCLUDED.enable_one_click_unsubscribe, neon_settings.enable_one_click_unsubscribe),
+             enable_global_unsubscribe = COALESCE(EXCLUDED.enable_global_unsubscribe, neon_settings.enable_global_unsubscribe),
+             enable_resend_tracking = COALESCE(EXCLUDED.enable_resend_tracking, neon_settings.enable_resend_tracking),
+             enable_auto_reply_to = COALESCE(EXCLUDED.enable_auto_reply_to, neon_settings.enable_auto_reply_to),
+             default_subject = COALESCE(EXCLUDED.default_subject, neon_settings.default_subject),
+             enable_dynamic_tags = COALESCE(EXCLUDED.enable_dynamic_tags, neon_settings.enable_dynamic_tags),
+             enable_deliverability_scanner = COALESCE(EXCLUDED.enable_deliverability_scanner, neon_settings.enable_deliverability_scanner),
+             enable_attachments = COALESCE(EXCLUDED.enable_attachments, neon_settings.enable_attachments),
+             enable_plain_text_fallback = COALESCE(EXCLUDED.enable_plain_text_fallback, neon_settings.enable_plain_text_fallback),
              updated_at = NOW();`,
-          [siteName, siteLogo, favicon, supportEmail, maintenanceMode || false, companyName || "", companyAddress || ""],
+          [
+            siteName || "R Sender",
+            siteLogo || "",
+            favicon || "✉️",
+            supportEmail || "support@rsender.io",
+            maintenanceMode || false,
+            companyName || "Your Company",
+            companyAddress || "123 Business Rd, City, Country",
+            defaultUnsubscribeUrl ?? "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+            enableOneClickUnsubscribe !== undefined ? enableOneClickUnsubscribe : true,
+            enableGlobalUnsubscribe !== undefined ? enableGlobalUnsubscribe : true,
+            enableResendTracking !== undefined ? enableResendTracking : false,
+            enableAutoReplyTo !== undefined ? enableAutoReplyTo : true,
+            defaultSubject ?? "Update regarding your account {name}",
+            enableDynamicTags !== undefined ? enableDynamicTags : true,
+            enableDeliverabilityScanner !== undefined ? enableDeliverabilityScanner : true,
+            enableAttachments !== undefined ? enableAttachments : true,
+            enablePlainTextFallback !== undefined ? enablePlainTextFallback : true,
+          ],
         );
         return jsonResponse({ success: true });
       }
@@ -2162,9 +2235,10 @@ export async function onRequest(context: EventContext): Promise<Response> {
       }
     }
 
-    if (path === "/api/resend/send" && method === "POST") {
+    if ((path === "/api/resend/send" || path === "/api/send") && method === "POST") {
       const {
         apiKey,
+        key: directKey,
         from,
         to,
         subject,
@@ -2182,8 +2256,35 @@ export async function onRequest(context: EventContext): Promise<Response> {
         taskId,
         taskName,
         apiName,
+        providerType,
+        provider_type,
+        open_tracking,
+        openTracking,
+        click_tracking,
+        clickTracking,
+        track_opens,
+        trackOpens,
+        track_clicks,
+        trackClicks,
       } = body;
-      const key = apiKey || env.RESEND_API_KEY;
+
+      const resolvedProvider =
+        providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend");
+
+      if (resolvedProvider === "smtp") {
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              "Custom SMTP channels require the Node.js runtime backend (server.ts) due to edge socket protocol constraints. Please run the Node server or use a Resend API channel on Cloudflare Pages.",
+            code: "EDGE_RUNTIME_SMTP_UNSUPPORTED",
+            provider: "smtp",
+          },
+          400,
+        );
+      }
+
+      const key = apiKey || directKey || env.RESEND_API_KEY;
       if (!key) return errorResponse("Resend API key is required", 400);
       if (!to || !from || !subject)
         return errorResponse("From, to, and subject are required", 400);
@@ -2200,16 +2301,40 @@ export async function onRequest(context: EventContext): Promise<Response> {
       const rawReplyTo = replyTo || reply_to;
       const isAutoReplyTo = autoReplyTo !== false;
 
+      // Query neon_settings for deliverability defaults
+      let allowTracking = false;
+      let defaultUnsubUrl: string | undefined;
+      let enableGlobalUnsub = true;
+
+      try {
+        const settingsRows = await runQuery(
+          env,
+          `SELECT enable_resend_tracking, default_unsubscribe_url, enable_global_unsubscribe FROM neon_settings WHERE id = 'default_settings' LIMIT 1`,
+        );
+        if (settingsRows.length > 0) {
+          allowTracking = settingsRows[0].enable_resend_tracking === true;
+          defaultUnsubUrl = settingsRows[0].default_unsubscribe_url;
+          enableGlobalUnsub = settingsRows[0].enable_global_unsubscribe !== false;
+        }
+      } catch {}
+
       // Dual-Part MIME Auto-Converter: Generates RFC 2046 compliant text/plain alternative
       const plainText =
         text && typeof text === "string" && text.trim().length > 0
           ? text
           : (html && typeof html === "string" && html.trim().length > 0 ? htmlToPlainText(html) : undefined);
 
+      const isRequestedOpen = Boolean(open_tracking ?? openTracking ?? track_opens ?? trackOpens);
+      const isRequestedClick = Boolean(click_tracking ?? clickTracking ?? track_clicks ?? trackClicks);
+      const openTrackingFinal = allowTracking && isRequestedOpen;
+      const clickTrackingFinal = allowTracking && isRequestedClick;
+
       const payload: any = {
-        from,
+        from: cleanFrom,
         to: recipientList,
         subject,
+        open_tracking: openTrackingFinal,
+        click_tracking: clickTrackingFinal,
         ...(html ? { html } : {}),
         ...(plainText ? { text: plainText } : {}),
         ...(cc ? { cc: Array.isArray(cc) ? cc : [cc] } : {}),
@@ -2228,6 +2353,8 @@ export async function onRequest(context: EventContext): Promise<Response> {
         replyTo: rawReplyTo,
         autoReplyTo: isAutoReplyTo,
         unsubscribeUrl: typeof unsubscribeUrl === "string" ? unsubscribeUrl : undefined,
+        defaultUnsubscribeUrl: defaultUnsubUrl,
+        enableGlobalUnsubscribe: enableGlobalUnsub,
         enableOneClickUnsubscribe: enableOneClickUnsubscribe !== false,
         customHeaders: headers && typeof headers === "object" ? headers : {},
         origin: requestOrigin,

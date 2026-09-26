@@ -1483,6 +1483,119 @@ This is an active application with real infrastructure dependencies rather than 
   - `lint_applet` (`tsc --noEmit`): Passed with 0 errors.
   - Cloudflare typecheck (`npx tsc -p functions/tsconfig.json --noEmit`): Passed with 0 errors.
 
+### Session 18: GitHub Import Migration & Environment Verification (Vib Tools X-Mailer)
+
+- **Objective:** Follow `/skills/system_skills/github_import_migration/SKILL.md` (Category C: Web / Node.js Compatible) to normalize, configure, and verify the imported GitHub repository `vibtools/X-Mailer` in AI Studio.
+- **Triage & Classification:**
+  - Class: Category C (Web / Node.js Compatible) — Full-stack React 19 + Express + Vite + PostgreSQL applet.
+- **Normalization & Wiring Actions:**
+  1. **Package Manager Normalization (Phase 1.1):**
+     - Deleted non-npm lockfile `bun.lock` from the repository root to adhere to AI Studio's Node.js 22 / npm runtime constraints.
+  2. **Vite Server Configuration (Phase 3):**
+     - Configured `host: '0.0.0.0'`, `port: 3000`, and `allowedHosts: true` in `vite.config.ts` to ensure seamless dev proxy and iframe embedding.
+  3. **Integration Wiring & Environment (Phase 4):**
+     - Updated `.env.example` to document `GEMINI_API_KEY=` (for `@google/genai` dependency) and `PORT=3000` alongside `DATABASE_URL=`, `AUTH_SECRET=`, and `JWT_SECRET=`.
+  4. **Strict Policy Compliance (AGENTS.md Rule 01):**
+     - Maintained 100% real architecture; zero mock/fake data or simulated endpoints introduced. Real PostgreSQL connection handling (`pg` / Neon) and real email dispatch provider architecture remain intact.
+- **Verification & Status:**
+  - `lint_applet` (`tsc --noEmit`): Passed with 0 errors.
+  - `compile_applet` (`vite build`): Succeeded cleanly.
+  - Full-stack server verified running on port 3000 (`0.0.0.0`), responding with 200 OK on HTTP routes and active JSON API responses on `/api/auth/setup-status` and `/api/neon/health`.
+
+### Session 19: Forensic Audit & Production 5-Phase Hardening Documentation Setup
+
+- **Objective:** Establish the comprehensive documentation suite under `Project/` based on the deep-dive forensic audit of the email sending pipeline and the user's explicit architectural directives.
+- **Vulnerabilities Identified & Cataloged:**
+  1. **Inactive List-Unsubscribe Header:** Blank user template unsubscribe URLs resulted in zero `List-Unsubscribe` headers, violating Google/Yahoo 2024 bulk sender rules and demoting mail to Spam.
+  2. **Resend Tracking Link Rewriting & Cloudflare SMTP Incompatibility:** Resend rewrote links to `resend.com/c/`, triggering phishing link obfuscation penalties (`PHISH_URL_MISMATCH`). Cloudflare Pages functions rejected Custom SMTP dispatches with HTTP 400.
+  3. **Task Runner Exception Stagnation:** Uncaught exceptions left contacts permanently in `'sending'` state, escaping completion accounting and retry attempts; stale closure index created race conditions during active dispatch.
+  4. **Silent Attachment Loss via S3 CORS:** Browser cross-origin fetch failures silently omitted attachments without notifying the user; raw base64 data URL prefixes risked binary header corruption.
+  5. **Internal API Key Label Leaks & Quoting Deficiencies:** Internal database labels appeared in public email `From:` headers; unquoted commas caused RFC 5322 Section 3.4 header syntax errors.
+- **Documentation Suite Created & Updated:**
+  - `Project/FORENSIC_AUDIT_REPORT.md`: Comprehensive technical vulnerability inventory with code citations, line numbers, and strict Scope Locks.
+  - `Project/ROADMAP.md`: Detailed 5-Phase sequential roadmap outlining step-by-step implementation, inputs, outputs, and invariants.
+  - `Project/PHASE_TRACKER.md`: Real-time execution log tracking progress across all 5 phases (0/5 completed initially, baseline frozen).
+  - `Project/ERROR_HANDLING.md`: Complete audit of active error handling patterns, failure gaps, and defensive engineering plans.
+  - `Project/FEATURE_STATUS.md`: Detailed matrix of active working features, planned phase features, and pending backlog.
+  - `Project/SPAM_ISSUES_AUDIT.md`: In-depth deliverability analysis covering Google/Yahoo mandates, SpamAssassin scoring, and link tracking heuristics.
+  - `Project/README.md`: Central engineering documentation index and navigation directory.
+- **Architectural Directive Incorporated:**
+  - Designed Phase 1 to introduce the **Admin Content Settings Page** (`AdminContentSettingsPage.tsx`) with master feature toggles (ON/OFF) and a default fallback Unsubscribe URL (`https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}`), with Resend tracking kill-switch.
+- **Status & Verification:**
+  - Baseline frozen at `2026-09-26`.
+  - Zero code modifications made in this planning turn to preserve baseline stability.
+  - `compile_applet` and `lint_applet` confirmed clean.
+
+### Session 20: Phase 1 Implementation & Verification — Admin "Content Settings" Page & Global Unsubscribe Engine
+
+- **Objective:** Implement Phase 1 of the Production Hardening Campaign per `Project/ROADMAP.md` and `Project/PHASE_TRACKER.md`.
+- **Target Vulnerability Resolved:** Vulnerability 01 (Inactive RFC 8058 List-Unsubscribe Header on unconfigured user templates causing Google/Yahoo Spam demotions).
+- **Core Files Created & Modified:**
+  1. `src/types/index.ts`:
+     - Extended `SiteSettings` / `SystemSettings` with `defaultUnsubscribeUrl`, `enableOneClickUnsubscribe`, `enableGlobalUnsubscribe`, `enableResendTracking`, `enableAutoReplyTo`, `defaultSubject`, `enableDynamicTags`, `enableDeliverabilityScanner`, `enableAttachments`, `enablePlainTextFallback`.
+  2. `server/db.ts`:
+     - Added 10 new columns to `CREATE TABLE IF NOT EXISTS neon_settings`.
+     - Added 10 safe, idempotent `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS ...` migrations.
+     - Updated default settings seed row in `neon_settings` with `https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}` and master switches.
+  3. `server.ts`:
+     - Updated GET `/api/settings` and POST `/api/settings` to load, map, and persist all Content Settings columns with `COALESCE` update safety.
+  4. `functions/api/[[catchall]].ts`:
+     - Synchronized Cloudflare Pages edge runtime GET/POST `/api/settings` with exact parity.
+  5. `src/services/apiService.ts`:
+     - Updated `defaultSettings` fallback object in `fetchSettingsFromDb` to include all content settings.
+  6. `src/utils/antiSpamHeaders.ts`:
+     - Updated `generateAntiSpamHeaders` to accept `defaultUnsubscribeUrl` and `enableGlobalUnsubscribe`.
+     - Implemented global fallback engine: when user `unsubscribeUrl` is empty, it automatically applies `defaultUnsubscribeUrl` with variable interpolation (`{EMAIL}`, `{email}`, `{domain}`), ensuring 100% of outgoing emails carry RFC 8058 `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers.
+  7. `src/context/AppContext.tsx`:
+     - Initialized `settings` state with content defaults.
+     - Wired `settingsRef.current.defaultUnsubscribeUrl` and `settingsRef.current.enableGlobalUnsubscribe` into `generateAntiSpamHeaders` dispatch call.
+  8. `src/components/admin/AdminContentSettingsPage.tsx` (New):
+     - Built dedicated administrative page featuring:
+       - Global Unsubscribe Engine controls with URL input and live RFC header preview box.
+       - Master toggle for RFC 8058 One-Click Header.
+       - Master kill-switch for Resend Tracking (open/click tracking) with clear anti-phishing guidance.
+       - Master toggles for Deliverability Scanner, Auto Reply-To, Dynamic Tags, Plain-Text MIME Fallback, and S3 Attachments.
+       - Reset to Recommended Defaults, Save Settings button, and toast notifications.
+  9. `src/components/admin/AdminLayout.tsx`:
+     - Added `"content-settings"` tab under Settings group with `Sliders` icon.
+     - Added header title and rendered `AdminContentSettingsPage`.
+  10. `src/utils/deliverabilityScanner.ts` & `DeliverabilityScannerModal.tsx`:
+      - Updated scanner to account for global unsubscribe engine so pre-flight checks recognize default unsubscribe URLs.
+  11. `src/components/pages/ContentPage.tsx`:
+      - Updated `List-Unsubscribe URL` input placeholder and helper text to dynamically display the admin default URL.
+- **Verification & Status:**
+  - `lint_applet` (`tsc --noEmit`): Passed with 0 errors.
+  - `compile_applet` (`vite build`): Succeeded cleanly.
+  - Live API testing (`curl http://localhost:3000/api/settings`): 200 OK returning all 10 new settings populated from PostgreSQL.
+  - Live header generation test via TSX execution: Confirmed `List-Unsubscribe: <https://unsubscribe.sotflo.com/unsubscribe?email=test.user%40domain.com>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` are generated for blank user templates.
+  - Zero modification to existing authentication, user management, or domain management flows (Scope Locked).
+
+### Session 21: Phase 2 Implementation & Verification — Resend Tracking Deactivation & Dual-Runtime Provider Parity
+
+- **Objective:** Implement Phase 2 of the Production Hardening Campaign per `Project/ROADMAP.md` and `Project/PHASE_TRACKER.md`.
+- **Target Vulnerability Resolved:** Vulnerability 02 (Resend Tracking Phishing Flag & Cloudflare Pages SMTP Crash).
+- **Core Files Created & Modified:**
+  1. `server/providers/types.ts`:
+     - Extended `SendParams` with tracking properties: `open_tracking`, `click_tracking`, `track_opens`, `track_clicks`.
+  2. `server/providers/resend.ts`:
+     - Explicitly set `open_tracking: false` and `click_tracking: false` by default on all Resend API dispatch payloads unless explicitly enabled and permitted by the admin master switch.
+  3. `server.ts`:
+     - In `/api/send` and `/api/resend/send`, read `enable_resend_tracking` from `neon_settings` and only pass tracking flags to provider if master switch is ON and caller requested it.
+  4. `functions/api/[[catchall]].ts`:
+     - Bound `/api/send` alongside `/api/resend/send` for full edge route parity.
+     - Added graceful edge protocol detection for Custom SMTP: returns structured JSON with `EDGE_RUNTIME_SMTP_UNSUPPORTED` and diagnostic guidance.
+     - Enforced `open_tracking: false` and `click_tracking: false` by default on Cloudflare edge.
+  5. `src/services/apiService.ts`:
+     - Updated `sendEmailViaResend` to route to unified `/api/send` endpoint.
+     - Exported `sendEmailUnified` alias for future provider expansion.
+  6. `src/context/AppContext.tsx`:
+     - Enforced `settingsRef.current.enableResendTracking` kill-switch when preparing dispatch parameters for each email recipient.
+- **Verification & Status:**
+  - `lint_applet` (`tsc --noEmit`): Passed with 0 errors.
+  - `compile_applet` (`vite build`): Succeeded cleanly.
+  - Dev server restarted and verified responding with 200 OK on `/api/settings` and `/api/send`.
+  - Zero modification to task runner state mutation loop or S3 attachment streaming (Scope Locked).
+
 ---
 
 ## 8. Synchronization mandate

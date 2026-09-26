@@ -68,6 +68,8 @@ export function scanDeliverability(params: {
   bodyHtml?: string;
   bodyText?: string;
   unsubscribeUrl?: string;
+  defaultUnsubscribeUrl?: string;
+  enableGlobalUnsubscribe?: boolean;
   enableOneClickUnsubscribe?: boolean;
 }): DeliverabilityReport {
   const {
@@ -75,6 +77,8 @@ export function scanDeliverability(params: {
     bodyHtml = '',
     bodyText = '',
     unsubscribeUrl = '',
+    defaultUnsubscribeUrl = '',
+    enableGlobalUnsubscribe = true,
     enableOneClickUnsubscribe = true,
   } = params;
 
@@ -272,7 +276,8 @@ export function scanDeliverability(params: {
 
   // 5. Unsubscribe & Compliance Check
   const hasUnsubInBody = /unsubscribe|\{unsubscribe\}|opt-out|opt out/i.test(combinedContent);
-  const hasUnsubConfig = Boolean(unsubscribeUrl && unsubscribeUrl.trim() !== '') || enableOneClickUnsubscribe;
+  const hasGlobalUnsub = enableGlobalUnsubscribe && Boolean(defaultUnsubscribeUrl || 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}');
+  const hasUnsubConfig = Boolean(unsubscribeUrl && unsubscribeUrl.trim() !== '') || enableOneClickUnsubscribe || hasGlobalUnsub;
   const hasUnsubscribe = hasUnsubInBody || hasUnsubConfig;
 
   if (!hasUnsubscribe) {

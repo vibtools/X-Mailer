@@ -17,6 +17,8 @@ export interface AntiSpamHeaderOptions {
   replyTo?: string;
   autoReplyTo?: boolean;
   unsubscribeUrl?: string;
+  defaultUnsubscribeUrl?: string;
+  enableGlobalUnsubscribe?: boolean;
   unsubscribeMailto?: string;
   enableOneClickUnsubscribe?: boolean;
   customHeaders?: Record<string, string>;
@@ -179,6 +181,8 @@ export function generateAntiSpamHeaders(options: AntiSpamHeaderOptions): AntiSpa
     replyTo,
     autoReplyTo = false,
     unsubscribeUrl,
+    defaultUnsubscribeUrl,
+    enableGlobalUnsubscribe = true,
     unsubscribeMailto,
     enableOneClickUnsubscribe = true,
     customHeaders = {},
@@ -248,23 +252,52 @@ export function generateAntiSpamHeaders(options: AntiSpamHeaderOptions): AntiSpa
           resultHeaders['List-Unsubscribe'] = `<${mailtoUri}>, <${finalUnsubUrl}>`;
         } else {
           // Standard RFC 8058 Compliance: Output purely the clean HTTPS One-Click URI.
-          // DO NOT synthesize a non-existent mailto:unsubscribe@${domain} address!
           resultHeaders['List-Unsubscribe'] = `<${finalUnsubUrl}>`;
         }
         resultHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
       }
+    } else if (enableGlobalUnsubscribe) {
+      // Global Unsubscribe Engine: When user leaves unsubscribeUrl blank, automatically apply
+      // Admin Default Unsubscribe URL so 100% of outgoing emails have valid RFC 8058 headers
+      const fallbackUrlRaw = (defaultUnsubscribeUrl || 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}').trim();
+      let httpsUrl = fallbackUrlRaw;
+      if (httpsUrl.startsWith('http://')) {
+        httpsUrl = `https://${httpsUrl.slice(7)}`;
+      } else if (!httpsUrl.startsWith('https://')) {
+        httpsUrl = `https://${httpsUrl}`;
+      }
+
+      if (httpsUrl.includes('{sender_domain}') || httpsUrl.includes('{domain}') || httpsUrl.includes('{DOMAIN}')) {
+        httpsUrl = httpsUrl.replace(/\{sender_domain\}|\{domain\}|\{DOMAIN\}/g, domain);
+      }
+
+      if (httpsUrl.includes('{EMAIL}') || httpsUrl.includes('{email}')) {
+        finalUnsubUrl = httpsUrl.replace(/\{EMAIL\}|\{email\}/g, encodedRecipient);
+      } else if (httpsUrl.includes('?')) {
+        finalUnsubUrl = `${httpsUrl}&email=${encodedRecipient}`;
+      } else {
+        finalUnsubUrl = `${httpsUrl}?email=${encodedRecipient}`;
+      }
+
+      // Check if explicit validated mailto was also provided
+      const explicitMailto = unsubscribeMailto ? sanitizeHeaderValue(unsubscribeMailto).trim() : '';
+      if (explicitMailto && isValidEmailAddress(explicitMailto.replace(/^mailto:/i, ''))) {
+        const cleanMailtoAddress = explicitMailto.replace(/^mailto:/i, '').trim();
+        const mailtoUri = `mailto:${cleanMailtoAddress}?subject=unsubscribe%20${encodedRecipient}`;
+        resultHeaders['List-Unsubscribe'] = `<${mailtoUri}>, <${finalUnsubUrl}>`;
+      } else {
+        resultHeaders['List-Unsubscribe'] = `<${finalUnsubUrl}>`;
+      }
+      resultHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
     } else {
-      // If user did NOT configure a custom unsubscribe URL, check if an explicit validated mailto inbox was provided
+      // If global unsubscribe is explicitly disabled and no custom URL was provided,
+      // check if an explicit validated mailto inbox was provided
       const explicitMailto = unsubscribeMailto ? sanitizeHeaderValue(unsubscribeMailto).trim() : '';
       if (explicitMailto && isValidEmailAddress(explicitMailto.replace(/^mailto:/i, ''))) {
         const cleanMailtoAddress = explicitMailto.replace(/^mailto:/i, '').trim();
         const mailtoUri = `mailto:${cleanMailtoAddress}?subject=unsubscribe%20${encodedRecipient}`;
         resultHeaders['List-Unsubscribe'] = `<${mailtoUri}>`;
       }
-      // CRITICAL DELIVERABILITY FIX:
-      // DO NOT synthesize a fake https://${domain}/unsubscribe endpoint when unconfigured!
-      // Sending domains have no backend route for /unsubscribe, resulting in 404 POST probe failures.
-      // Google and Yahoo 2024 compliance bots flag 404 endpoints as "RFC Deceptive Headers" and demote mail to Spam.
     }
   }
 

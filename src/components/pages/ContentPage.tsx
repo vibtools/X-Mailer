@@ -477,15 +477,20 @@ export const ContentPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label htmlFor="unsubUrlInput" className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                List-Unsubscribe URL
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="unsubUrlInput" className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                  List-Unsubscribe URL
+                </label>
+                <span className="text-[9px] text-slate-500 font-mono">
+                  Default: {settings?.defaultUnsubscribeUrl || 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}'}
+                </span>
+              </div>
               <input
                 type="text"
                 id="unsubUrlInput"
                 value={unsubscribeUrl}
                 onChange={(e) => setUnsubscribeUrl(e.target.value)}
-                placeholder="https://yourdomain.com/unsubscribe?email={EMAIL}"
+                placeholder={settings?.defaultUnsubscribeUrl || 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}'}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-colors"
               />
             </div>

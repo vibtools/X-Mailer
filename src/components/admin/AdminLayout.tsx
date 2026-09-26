@@ -16,11 +16,12 @@ import { useApp } from '../../context/AppContext';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminUsersPage } from './AdminUsersPage';
 import { AdminContentPage } from './AdminContentPage';
+import { AdminContentSettingsPage } from './AdminContentSettingsPage';
 import { AdminSettingsPage } from './AdminSettingsPage';
 import { AdminStorageSettingsPage } from './AdminStorageSettingsPage';
 import { AdminDomainsPage } from './AdminDomainsPage';
 
-export type AdminTab = 'dashboard' | 'users' | 'content' | 'settings' | 'storage' | 'domains';
+export type AdminTab = 'dashboard' | 'users' | 'content' | 'content-settings' | 'settings' | 'storage' | 'domains';
 
 export const AdminLayout: React.FC = () => {
   const { adminUser, logoutAdmin, setIsAdminMode, settings } = useApp();
@@ -42,7 +43,7 @@ export const AdminLayout: React.FC = () => {
     setIsAdminMode(false);
   };
 
-  const isSettingsActive = currentTab === 'settings' || currentTab === 'storage';
+  const isSettingsActive = currentTab === 'settings' || currentTab === 'storage' || currentTab === 'content-settings';
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -293,6 +294,18 @@ export const AdminLayout: React.FC = () => {
                 {settingsGroupOpen && (
                   <div className="pl-2.5 ml-2 border-l border-slate-800 space-y-0.5 pt-0.5">
                     <button
+                      onClick={() => setCurrentTab('content-settings')}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left ${
+                        currentTab === 'content-settings'
+                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-normal'
+                      }`}
+                    >
+                      <Sliders className="w-3 h-3 shrink-0 text-emerald-400" />
+                      <span>Content Settings</span>
+                    </button>
+
+                    <button
                       onClick={() => setCurrentTab('settings')}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-left ${
                         currentTab === 'settings'
@@ -320,6 +333,17 @@ export const AdminLayout: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-0.5">
+                <button
+                  onClick={() => setCurrentTab('content-settings')}
+                  className={`w-full flex items-center justify-center p-1.5 rounded transition-colors ${
+                    currentTab === 'content-settings'
+                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="Content Settings"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                </button>
                 <button
                   onClick={() => setCurrentTab('settings')}
                   className={`w-full flex items-center justify-center p-1.5 rounded transition-colors ${
@@ -397,6 +421,8 @@ export const AdminLayout: React.FC = () => {
                 ? 'Users'
                 : currentTab === 'content'
                 ? 'Email Content'
+                : currentTab === 'content-settings'
+                ? 'Content Settings'
                 : currentTab === 'storage'
                 ? 'Storage Settings'
                 : 'Site Settings'}
@@ -428,6 +454,7 @@ export const AdminLayout: React.FC = () => {
           {currentTab === 'domains' && <AdminDomainsPage />}
           {currentTab === 'users' && <AdminUsersPage />}
           {currentTab === 'content' && <AdminContentPage />}
+          {currentTab === 'content-settings' && <AdminContentSettingsPage />}
           {currentTab === 'settings' && <AdminSettingsPage />}
           {currentTab === 'storage' && <AdminStorageSettingsPage />}
         </main>

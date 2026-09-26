@@ -1,175 +1,78 @@
-# Forensic Audit: Identified Spam Causes in Codebase & Fix Tracker
+# 📬 Deliverability & Spam Issues Forensic Deep Dive
 
-**Document ID:** `SPAM-AUDIT-2026-09-24`  
-**Target:** R Sender Dispatch Engine, Header Generator & Template Pipeline  
-**Scope:** In-Depth Analysis of 7 Specific Code Mismatches Causing Inbound Mail to Land in Spam / Junk Despite 100% Valid Domain DNS (SPF, DKIM, DMARC)  
-**Status:** `ALL ISSUES FIXED AND VERIFIED`
-
----
-
-## ১. List-Unsubscribe হেডারে বাধ্যতামুলক ফেক mailto: বাগ
-
-### কোডের অবস্থান:
-- **ফাইল:** `src/utils/antiSpamHeaders.ts` (লাইন ২৩৬–২৪২)
-
-### কোড স্নিপেট:
-```typescript
-const mailtoUri = `mailto:unsubscribe@${domain}?subject=unsubscribe%20${encodedRecipient}`;
-resultHeaders['List-Unsubscribe'] = `<${mailtoUri}>, <${finalUnsubUrl}>`;
-resultHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- ব্যবহারকারী যদি কোনো বৈধ আলাদা কাস্টম আনসাবস্ক্রাইব URL (যেমন: `https://my-unsub.com/unsub`) ব্যবহারও করেন, কোড জোরপূর্বক হেডারে `<mailto:unsubscribe@${domain}>` যুক্ত করে দেয়।
-- অধিকাংশ প্রেরক ডোমেইনে `unsubscribe@yourdomain.com` নামের কোনো আসল ইনবক্স বা ইনকামিং MX রেকর্ড থাকে না।
-- ইয়াহু, আউটলুক ও জিমেইলের সিকিউরিটি বটগুলো যখন হেডারে `mailto:` দেখে স্বয়ংক্রিয়ভাবে проверка (probe) চালায় বা বাউন্স পায় (`550 Mailbox not found`), তখন তারা পুরো মেসেজটিকে **RFC Deceptive Header (প্রতারণামূলক আনসাবস্ক্রাইব হেডার)** হিসেবে চিহ্নিত করে স্বয়ংক্রিয়ভাবে স্প্যাম বক্সে পাঠিয়ে দেয়।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- যদি আলাদা কাস্টম আনসাবস্ক্রাইব URL দেওয়া থাকে এবং কোনো বৈধ mailto ইনবক্স কনফিগার করা না থাকে, তবে হেডারে শুধু HTTPS One-Click URL `<${finalUnsubUrl}>` রাখতে হবে; অবাস্তব/কাল্পনিক `mailto:` হেডার বাদ দিতে হবে।
+**Document ID:** `SPAM-AUDIT-2026-09-26`  
+**Application Target:** R Sender / X-Mailer Full-Stack Platform  
+**Focus:** Mailbox Provider Heuristics (Google Workspace, Yahoo Mail, Microsoft 365), SpamAssassin Scoring, and RFC Compliance Standards.
 
 ---
 
-## ২. autoReplyTo লজিক কাস্টম Reply-To ইমেইলকে কেটে নষ্ট করে ফেলা
+## 1. Why Bulk Emails Land in the Spam Folder: The Root Causes
 
-### কোডের অবস্থান:
-- **ফাইল:** `src/utils/antiSpamHeaders.ts` (লাইন ১৬৭–১৭১)
+Deliverability in modern email environments (2024–2026) is determined by automated compliance filters, machine learning NLP scanners, and domain reputation telemetry. The recent forensic audit identified the primary triggers currently active in the codebase:
 
-### কোড স্নিপেট:
-```typescript
-// If user entered "support@gmail.com" or "team@otherdomain.com"
-const emailMatch = cleanReplyTo.match(/^([a-zA-Z0-9._%+-]+)@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/);
-if (emailMatch) {
-  const localPart = emailMatch[1].toLowerCase();
-  return `${localPart}@${senderDomain}`;
-}
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- ব্যবহারকারী চান প্রেরক ডোমেইন যাই হোক, রিসিভারদের রিপ্লাই তার মূল কাজের ইনবক্সে (যেমন: `myteam@gmail.com` বা `support@helpdesk.com`) আসুক।
-- কিন্তু কোডে `autoReplyTo: true` ডিফল্ট থাকায় কোড জোর করে `@gmail.com` বা `@helpdesk.com` অংশটি কেটে ফেলে দিয়ে বানিয়ে দিচ্ছে `myteam@senderDomain`।
-- প্রেরক ডোমেইনে যদি ওই নামে কোনো আসল ইনবক্স খোলা না থাকে, তবে রিপ্লাই-টু সম্পূর্ণ অকার্যকর (Dead) হয়ে যায়। স্প্যাম ফিল্টাররা Reply-To অ্যাড্রেসের বৈধতা ও MX রেকর্ড যাচাই করে যখন দেখে এটি নিষ্ক্রিয়, তখন **Invalid/Bouncing Reply-To** পেনাল্টি যুক্ত করে।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- ব্যবহারকারী যদি স্পষ্টভাবে একটি সম্পূর্ণ বৈধ ইমেইল অ্যাড্রেস (`user@external.com`) Reply-To হিসেবে দেন, তবে তা কোনো অবস্থাতেই ডোমেইন রিরুট বা কাটাকাটি না করে হুবহু অক্ষত রাখতে হবে। শুধুমাত্র ব্যবহারকারী যদি কোনো লোকাল নাম দেন (যেমন: শুধু `support` বা খালি রাখেন), কেবল তখনই প্রেরক ডোমেইনের সাথে অ্যালাইন করা উচিত।
+### 1.1 Trigger 1: Missing RFC 8058 One-Click List-Unsubscribe Header
+- **Standard:** RFC 8058 & RFC 2369.
+- **Provider Mandate:** Google and Yahoo (effective February 2024) enforce mandatory One-Click Unsubscribe headers for all high-volume and bulk senders.
+- **Why It Causes Spam:**
+  When a message lacks `List-Unsubscribe: <https://...>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, mail clients cannot render the native "Unsubscribe" button in the client toolbar.
+  When recipients who no longer wish to receive communication cannot easily unsubscribe, their only option is to click **"Report as Spam"**.
+  If a sender's spam complaint rate exceeds **0.3%** (3 reports per 1,000 deliveries), Google's postmaster algorithms automatically throttle delivery and redirect all future messages to Spam.
+- **The Code Flaw:** In `src/utils/antiSpamHeaders.ts`, if the user does not specify a custom unsubscribe URL, the engine outputs no `List-Unsubscribe` header at all.
+- **The Fix (Phase 1):** Provide a global fallback URL (`https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}`) managed via Admin Content Settings, ensuring every single dispatch carries valid RFC 8058 headers.
 
 ---
 
-## ৩. onboarding@resend.dev ফলব্যাক এবং DMARC ডোমেইন মিসম্যাচ
-
-### কোডের অবস্থান:
-- **ফাইল:** `server.ts` (লাইন ২০৬২), `functions/api/[[catchall]].ts`, `AppContext.tsx` (লাইন ৭০৯)
-
-### কোড স্নিপেট:
-```typescript
-let formattedFrom = from && typeof from === "string" ? from.trim() : "";
-if (!formattedFrom) {
-  formattedFrom = "onboarding@resend.dev";
-}
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- এপিআই কী সেট করার সময় ব্যবহারকারী যদি প্রেরক ইমেইল না দেন বা কোনো কারণে ফিল্ডটি ফাঁকা থাকে, কোড স্বয়ংক্রিয়ভাবে ফলব্যাক করে `onboarding@resend.dev`।
-- প্রেরক ডোমেইন যদি হয় `onboarding@resend.dev`, কিন্তু এপিআই কী থাকে কাস্টম ডোমেইনের, তবে ডিকেআইএম ও এসপিএফ সাইন এবং From হেডারের মধ্যে সরাসরি DMARC Alignment Failure ঘটে।
-- Resend-এর `onboarding@resend.dev` শুধু নিজের একাউন্ট ইমেইলে টেস্টের জন্য অনুমোদিত; বাইরের যেকোনো প্রাপকের ক্ষেত্রে এটি ১০০% স্প্যাম বা বাউন্স ট্রিগার করে।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- কখনো অন্ধভাবে `onboarding@resend.dev` ফলব্যাক না করা। এপিআই কী থেকে তার ভেরিফাইড ডোমেইনের আসল ইমেইল রিকভার করা, অথবা প্রেরক ইমেইল মিসিং থাকলে ডিসপ্যাচ আটকিয়ে ব্যবহারকারীকে ভ্যালিড সেন্ডার ইমেইল প্রোভাইড করার স্পষ্ট সতর্কতা দেওয়া।
+### 1.2 Trigger 2: Tracking Domain Mismatch (Phishing Link Obfuscation)
+- **Standard:** Anti-Phishing Heuristic (SpamAssassin rule `PHISH_URL_MISMATCH`).
+- **Why It Causes Spam:**
+  By default, transactional API providers like Resend rewrite all hyperlinks in the email body into their own domain redirects (e.g. `https://resend.com/c/...` or `https://click.resend.dev/...`) and insert an open-tracking pixel (`<img src="https://resend.com/o/...">`).
+  Security gateways (Proofpoint, Microsoft Defender 365, Mimecast) analyze the sender domain vs. link destination:
+  - Sender: `billing@mycompany.com`
+  - Links: `https://resend.com/c/3a4b5c...`
+  Because thousands of other accounts send through `resend.com`, any bad actor using the shared tracking domain contaminates its reputation. When corporate gateways detect a mismatch between the sender domain and the link domain, they assign a heavy **Phishing Link Obfuscation** penalty, routing the message to Junk or quarantine.
+- **The Code Flaw:** Neither `server/providers/resend.ts` nor `functions/api/[[catchall]].ts` passed `open_tracking: false` or `click_tracking: false` to Resend.
+- **The Fix (Phase 2):** Implement a master toggle in Admin Content Settings and explicitly pass `open_tracking: false` and `click_tracking: false` to Resend API payloads, preserving original domain URLs.
 
 ---
 
-## ৪. অসম্ভব দ্রুত গতিতে ইমেইল পাঠানো (delayMs = 650ms - 800ms)
-
-### কোডের অবস্থান:
-- **ফাইল:** `src/context/AppContext.tsx` (লাইন ৬১২–৬২০) এবং `neon_settings` ডিফল্ট
-
-### কোড স্নিপেট:
-```typescript
-delayMs: taskDelay !== undefined ? taskDelay : 800
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- প্রতি ইমেইলের মাঝে মাত্র ০.৬৫ থেকে ০.৮ সেকেন্ড বিরতি দিয়ে মিনিটে ৬০-৮০টি এবং ঘন্টায় ৪,০০০+ মেইল ডিসপ্যাচ হয়।
-- গুগল (জিমেইল) ও মাইক্রোসফট (আউটলুক)-এর রিসিভিং এমটিএ (MTA) সার্ভার দেখে যে একটি নতুন বা সাধারণ ডোমেইন থেকে প্রতি সেকেন্ডে একের পর এক কানেকশন ওপেন হচ্ছে।
-- একে তাৎক্ষণিকভাবে **Automated Spambot Burst / High Velocity Flooding** হিসেবে শনাক্ত করে জিমেইলের অ্যালগরিদম সমস্ত মেইল সরাসরি স্প্যামে ঢুকিয়ে দেয়। কোল্ড আউটরিচের জন্য স্বাভাবিক মানবিক পেসিং (Human pacing) প্রয়োজন।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- সেটিংসে রেকমেন্ডেড সেফ ডিলে মোড (যেমন: ১০–৩০ সেকেন্ডের র‍্যান্ডমাইজড হিউম্যান ডিলে) এবং ব্যাচিং থ্রটলিং অপশন যুক্ত করা।
+### 1.3 Trigger 3: Technical API Key Label Leaks in the `From:` Header
+- **Standard:** RFC 5322 Section 3.4 (Mailbox Specification).
+- **Why It Causes Spam:**
+  When `rawSenderName` matches placeholder defaults, `AppContext.tsx` overrides it with `selectedApi.name`. If an administrator labels their key `"Resend Production Key 03"`, recipients see:
+  `From: Resend Production Key 03 <notifications@company.com>`.
+  Recipients immediately perceive internal infrastructure labels as suspicious, automated spam bots or unauthorized spoofing, leading to immediate spam flagging.
+- **The Code Flaw:** `AppContext.tsx` lines 709–713 replaces empty sender names with `selectedApi.name`.
+- **The Fix (Phase 5):** Disconnect internal API labels from public display names; derive display names strictly from company name or authenticated domain.
 
 ---
 
-## ৫. ডাইনামিক ট্যাগ ({INV}, {TRX}) ফিশিং ফিল্টারে ধরা পড়া
-
-### কোডের অবস্থান:
-- **ফাইল:** `src/utils/dynamicTags.ts` (লাইন ১৩৫–১৪৬)
-
-### কোড স্নিপেট:
-```typescript
-// Invoice ID {INV} (12-digit number)
-if (/\{inv\}/i.test(combinedText)) {
-  const invoiceId = generateRandomDigits(12);
-  tagMap['{INV}'] = invoiceId;
-}
-// Transaction ID {TRX} (12-digit alphanumeric)
-if (/\{trx\}/i.test(combinedText)) {
-  const trxId = generateRandomAlphanumeric(12);
-  tagMap['{TRX}'] = trxId;
-}
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- বর্তমান ইন্টারনেটে সর্বাধিক প্রচলিত ফিশিং হলো ফেক ইনভয়েস স্ক্যাম (PayPal, GeekSquad, Norton ইত্যাদি)।
-- জিমেইল এবং আউটলুকের ন্যাচারাল ল্যাঙ্গুয়েজ ও বেয়েসিয়ান (Bayesian) ফিল্টার সাবজেক্ট বা বডিতে ১২ ডিজিটের র‍্যান্ডম ইনভয়েস নম্বর (`849201948572`) বা ট্রানজেকশন কোড পেলেই অ্যান্টি-ফিশিং ফ্ল্যাগ রেজ করে।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- ফিশিং-ট্রিগার ট্যাগগুলোর বদলে স্ট্যান্ডার্ড প্রফেশনাল পার্সোনালাইজেশন ট্যাগ প্রমোট করা এবং ফিশিং-রিস্ক ওয়ার্নিং যুক্ত করা।
+### 1.4 Trigger 4: Unquoted Special Characters in Sender Display Names
+- **Standard:** RFC 5322 Section 3.4.
+- **Why It Causes Spam:**
+  If a sender name contains a comma, semicolon, or colon (e.g. `Smith, John`), RFC 5322 mandates that the display name must be an enclosed quoted-string:
+  `"Smith, John" <john@company.com>`.
+  If left unquoted (`Smith, John <john@company.com>`), the parser interprets `"Smith"` and `"John <john@company.com>"` as two separate addresses. Many MTAs reject the message outright (`501 5.1.7 Bad sender address syntax`) or flag it with SpamAssassin `FROM_EXCESS_COMA`.
+- **The Code Flaw:** `server.ts` does not wrap display names containing commas in quotes.
+- **The Fix (Phase 5):** Auto-quote display names containing special characters.
 
 ---
 
-## ৬. রাউন্ড-রবিন রোটেশনের কারণে Sender Domain vs Body Links মিসম্যাচ
-
-### কোডের অবস্থান:
-- **ফাইল:** `src/context/AppContext.tsx` (লাইন ৬৩৪–৬৬০)
-
-### কোড স্নিপেট:
-- একাধিক এপিআই কী ব্যবহার করলে এক ইমেইল যায় `domain-a.com` থেকে, পরেরটি যায় `domain-b.com` থেকে। কিন্তু বডিতে থাকা লিংক ও ফুটার একই থাকে।
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- যখন ইমেইল পাঠানো হয় `domain-b.com` থেকে, কিন্তু ইমেলের ভেতর থাকা কোনো ওয়েবসাইটের লিংক বা আনসাবস্ক্রাইব লিংক指向 করে `domain-a.com`-কে।
-- স্প্যাম ফিল্টাররা একে **Header vs Body Domain Mismatch** হিসেবে দেখে, যা ফিশিং ও লিংক স্পুফিংয়ের প্রধান লক্ষণ।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- বডি এবং ফুটারের লিংকগুলো বর্তমান ডিসপ্যাচ সেন্ডার ডোমেইনের সাথে অটোমেটিক্যালি অ্যালাইন করা।
+### 1.5 Trigger 5: Duplicate Sends Due to In-Flight Browser State Loss
+- **Why It Causes Spam:**
+  If a 500-recipient task is interrupted at recipient 300 (due to a browser crash, refresh, or power loss) and in-flight updates were not flushed to the database, restarting the task dispatches duplicate emails to the first 300 contacts.
+  Recipients receiving identical messages within minutes almost invariably click **"Report Spam"**.
+- **The Code Flaw:** `updateTask` in `AppContext.tsx` debounces updates and only forces DB save on task completion (`stats.remaining === 0`).
+- **The Fix (Phase 3):** Resilient state-machine updates and periodic milestone flushes ensure progress is reliably recorded in PostgreSQL.
 
 ---
 
-## ৭. CAN-SPAM আইন অনুযায়ী ফিজিক্যাল পোস্টাল অ্যাড্রেস (Postal Address) না থাকা
+## 2. Deliverability Scoring Matrix Before & After Remediation
 
-### কোডের অবস্থান:
-- **ফাইল:** `server/db.ts` (ডিফল্ট টেমপ্লেট) এবং `src/components/pages/ContentPage.tsx`
-
-### কোড স্নিপেট:
-- ডিফল্ট টেমপ্লেট ও কনটেন্ট বডিতে কোনো বাস্তব অফিস বা পোস্টাল ঠিকানা নেই:
-```html
-<p style="font-size: 12px; color: #94a3b8; text-align: center;">
-  Sent via R Sender Bulk Engine · Delivered to {email}
-</p>
-```
-
-### কেন স্প্যাম হচ্ছে (Root Cause):
-- মার্কিন CAN-SPAM Act, ইউরোপীয় GDPR এবং ২০২৪ সালের Google & Yahoo Bulk Sender Mandates অনুযায়ী বাণিজ্যিক/বাল্ক ইমেইলের ফুটারে প্রেরকের বৈধ ভৌগোলিক ঠিকানা (Physical Street Address / P.O. Box / City, Country) থাকা বাধ্যতামূলক।
-- SpamAssassin ফিল্টারে ঠিকানা না থাকলে `MISSING_POSTAL_ADDRESS` এবং `CAN_SPAM_VIOLATION` পয়েন্ট যোগ হয়ে মেইল স্প্যামে চলে যায়।
-
-### প্রস্তাবিত ফিক্স স্ট্র্যাটেজি:
-- টেমপ্লেট ও ডিফল্ট কনটেন্টে একটি কমপ্লায়েন্ট পোস্টাল অ্যাড্রেস প্লেসহোল্ডার এবং ভ্যালিড ফুটার যুক্ত করা।
-
----
-
-## ট্র্যাকার স্ট্যাটাস:
-- [x] ৭টি সুনির্দিষ্ট স্প্যাম কারণের ফরেনসিক অডিট ও ডকুমেন্টেশন সম্পন্ন।
-- [ ] স্টেপ ১: `List-Unsubscribe` হেডার থেকে ফেক `mailto:` রিমুভ ও কাস্টম URL প্রায়োরিটাইজেশন।
-- [ ] স্টেপ ২: `autoReplyTo` দ্বারা কাস্টম ভ্যালিড ইমেইল ক্ষতিগ্রস্ত হওয়া বন্ধ করা।
-- [ ] স্টেপ ৩: `onboarding@resend.dev` ফলব্যাকের জায়গায় ডোমেইন রিকভারি/গার্ড স্থাপন।
-- [ ] স্টেপ ৪: ডিসপ্যাচ পেসিং ও হিউম্যান ডিলে কন্ট্রোল ইন্টিগ্রেশন।
-- [ ] স্টেপ ৫: ডাইনামিক ট্যাগ ফিশিং ঝুঁকি সুরক্ষা ও গাইডেন্স।
-- [ ] স্টেপ ৬: রাউন্ড-রবিন ডোমেইন অ্যালাইনমেন্ট।
-- [ ] স্টেপ ৭: CAN-SPAM পোস্টাল অ্যাড্রেস ফুটার কমপ্লায়েন্স।
+| Deliverability Factor | Baseline State (Before) | Post-Remediation State (After 5 Phases) |
+| :--- | :--- | :--- |
+| **RFC 8058 One-Click Header** | Missing if user leaves URL blank (Google/Yahoo penalty) | 100% Guaranteed via Admin Default Unsubscribe Fallback |
+| **Link Obfuscation / Phishing** | Active (Resend rewrites links to `resend.com/c/`) | Eliminated (Direct domain URLs with tracking disabled) |
+| **Sender Name Authenticity** | Internal technical API labels leak into `From:` | Clean business identity; technical labels never leak |
+| **From Header Syntax** | Unquoted commas cause RFC 5322 syntax errors | Fully quoted RFC 5322 compliance (`"Last, First" <email>`) |
+| **Attachment Integrity** | Dropped silently if S3 bucket lacks CORS | Guaranteed delivery via same-origin backend proxy |
+| **Task Failure Recovery** | Exceptions leave contacts stuck in `'sending'` forever | Contacts marked `'failed'`, fully retryable with single click |

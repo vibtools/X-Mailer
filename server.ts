@@ -2014,6 +2014,18 @@ async function startServer() {
           defaultSenderName: "R Sender Dispatcher",
           retryFailedCount: 2,
           maintenanceMode: false,
+          companyName: "Your Company",
+          companyAddress: "123 Business Rd, City, Country",
+          defaultUnsubscribeUrl: "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+          enableOneClickUnsubscribe: true,
+          enableGlobalUnsubscribe: true,
+          enableResendTracking: false,
+          enableAutoReplyTo: true,
+          defaultSubject: "Update regarding your account {name}",
+          enableDynamicTags: true,
+          enableDeliverabilityScanner: true,
+          enableAttachments: true,
+          enablePlainTextFallback: true,
         });
       }
       const { rows } = await pool.query("SELECT * FROM neon_settings LIMIT 1");
@@ -2030,6 +2042,18 @@ async function startServer() {
           defaultSenderName: "R Sender Dispatcher",
           retryFailedCount: 2,
           maintenanceMode: false,
+          companyName: "Your Company",
+          companyAddress: "123 Business Rd, City, Country",
+          defaultUnsubscribeUrl: "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+          enableOneClickUnsubscribe: true,
+          enableGlobalUnsubscribe: true,
+          enableResendTracking: false,
+          enableAutoReplyTo: true,
+          defaultSubject: "Update regarding your account {name}",
+          enableDynamicTags: true,
+          enableDeliverabilityScanner: true,
+          enableAttachments: true,
+          enablePlainTextFallback: true,
         });
       }
       const r = rows[0];
@@ -2045,6 +2069,18 @@ async function startServer() {
         defaultSenderName: r.default_sender_name,
         retryFailedCount: r.retry_failed_count,
         maintenanceMode: r.maintenance_mode,
+        companyName: r.company_name || "Your Company",
+        companyAddress: r.company_address || "123 Business Rd, City, Country",
+        defaultUnsubscribeUrl: r.default_unsubscribe_url || "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+        enableOneClickUnsubscribe: r.enable_one_click_unsubscribe !== false,
+        enableGlobalUnsubscribe: r.enable_global_unsubscribe !== false,
+        enableResendTracking: r.enable_resend_tracking === true,
+        enableAutoReplyTo: r.enable_auto_reply_to !== false,
+        defaultSubject: r.default_subject || "Update regarding your account {name}",
+        enableDynamicTags: r.enable_dynamic_tags !== false,
+        enableDeliverabilityScanner: r.enable_deliverability_scanner !== false,
+        enableAttachments: r.enable_attachments !== false,
+        enablePlainTextFallback: r.enable_plain_text_fallback !== false,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -2064,38 +2100,78 @@ async function startServer() {
         defaultSenderEmail,
         defaultSenderName,
         maintenanceMode,
+        companyName,
+        companyAddress,
+        defaultUnsubscribeUrl,
+        enableOneClickUnsubscribe,
+        enableGlobalUnsubscribe,
+        enableResendTracking,
+        enableAutoReplyTo,
+        defaultSubject,
+        enableDynamicTags,
+        enableDeliverabilityScanner,
+        enableAttachments,
+        enablePlainTextFallback,
       } = req.body;
 
       await pool.query(
         `INSERT INTO neon_settings (
           id, site_name, site_logo, favicon, support_email, neon_connection_string,
-          neon_status, default_delay_ms, default_sender_email, default_sender_name, maintenance_mode, updated_at
+          neon_status, default_delay_ms, default_sender_email, default_sender_name,
+          maintenance_mode, company_name, company_address, default_unsubscribe_url,
+          enable_one_click_unsubscribe, enable_global_unsubscribe, enable_resend_tracking,
+          enable_auto_reply_to, default_subject, enable_dynamic_tags, enable_deliverability_scanner,
+          enable_attachments, enable_plain_text_fallback, updated_at
         ) VALUES (
-          'default_settings', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()
+          'default_settings', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW()
         )
         ON CONFLICT (id) DO UPDATE
-        SET site_name = EXCLUDED.site_name,
-            site_logo = EXCLUDED.site_logo,
-            favicon = EXCLUDED.favicon,
-            support_email = EXCLUDED.support_email,
-            neon_connection_string = EXCLUDED.neon_connection_string,
-            neon_status = EXCLUDED.neon_status,
-            default_delay_ms = EXCLUDED.default_delay_ms,
-            default_sender_email = EXCLUDED.default_sender_email,
-            default_sender_name = EXCLUDED.default_sender_name,
-            maintenance_mode = EXCLUDED.maintenance_mode,
+        SET site_name = COALESCE(EXCLUDED.site_name, neon_settings.site_name),
+            site_logo = COALESCE(EXCLUDED.site_logo, neon_settings.site_logo),
+            favicon = COALESCE(EXCLUDED.favicon, neon_settings.favicon),
+            support_email = COALESCE(EXCLUDED.support_email, neon_settings.support_email),
+            neon_connection_string = COALESCE(EXCLUDED.neon_connection_string, neon_settings.neon_connection_string),
+            neon_status = COALESCE(EXCLUDED.neon_status, neon_settings.neon_status),
+            default_delay_ms = COALESCE(EXCLUDED.default_delay_ms, neon_settings.default_delay_ms),
+            default_sender_email = COALESCE(EXCLUDED.default_sender_email, neon_settings.default_sender_email),
+            default_sender_name = COALESCE(EXCLUDED.default_sender_name, neon_settings.default_sender_name),
+            maintenance_mode = COALESCE(EXCLUDED.maintenance_mode, neon_settings.maintenance_mode),
+            company_name = COALESCE(EXCLUDED.company_name, neon_settings.company_name),
+            company_address = COALESCE(EXCLUDED.company_address, neon_settings.company_address),
+            default_unsubscribe_url = COALESCE(EXCLUDED.default_unsubscribe_url, neon_settings.default_unsubscribe_url),
+            enable_one_click_unsubscribe = COALESCE(EXCLUDED.enable_one_click_unsubscribe, neon_settings.enable_one_click_unsubscribe),
+            enable_global_unsubscribe = COALESCE(EXCLUDED.enable_global_unsubscribe, neon_settings.enable_global_unsubscribe),
+            enable_resend_tracking = COALESCE(EXCLUDED.enable_resend_tracking, neon_settings.enable_resend_tracking),
+            enable_auto_reply_to = COALESCE(EXCLUDED.enable_auto_reply_to, neon_settings.enable_auto_reply_to),
+            default_subject = COALESCE(EXCLUDED.default_subject, neon_settings.default_subject),
+            enable_dynamic_tags = COALESCE(EXCLUDED.enable_dynamic_tags, neon_settings.enable_dynamic_tags),
+            enable_deliverability_scanner = COALESCE(EXCLUDED.enable_deliverability_scanner, neon_settings.enable_deliverability_scanner),
+            enable_attachments = COALESCE(EXCLUDED.enable_attachments, neon_settings.enable_attachments),
+            enable_plain_text_fallback = COALESCE(EXCLUDED.enable_plain_text_fallback, neon_settings.enable_plain_text_fallback),
             updated_at = NOW()`,
         [
-          siteName || "R Sender",
-          siteLogo || "",
-          favicon || "✉️",
-          supportEmail || "support@rsender.io",
+          siteName ?? "R Sender",
+          siteLogo ?? "",
+          favicon ?? "✉️",
+          supportEmail ?? "support@rsender.io",
           neonConnectionString || DATABASE_URL,
-          neonStatus || "connected",
-          defaultDelayMs || 3000,
-          defaultSenderEmail || "sender@yourdomain.com",
-          defaultSenderName || "R Sender Dispatcher",
-          maintenanceMode || false,
+          neonStatus ?? "connected",
+          defaultDelayMs ?? 3000,
+          defaultSenderEmail ?? "sender@yourdomain.com",
+          defaultSenderName ?? "R Sender Dispatcher",
+          maintenanceMode ?? false,
+          companyName ?? "Your Company",
+          companyAddress ?? "123 Business Rd, City, Country",
+          defaultUnsubscribeUrl ?? "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+          enableOneClickUnsubscribe !== undefined ? enableOneClickUnsubscribe : true,
+          enableGlobalUnsubscribe !== undefined ? enableGlobalUnsubscribe : true,
+          enableResendTracking !== undefined ? enableResendTracking : false,
+          enableAutoReplyTo !== undefined ? enableAutoReplyTo : true,
+          defaultSubject ?? "Update regarding your account {name}",
+          enableDynamicTags !== undefined ? enableDynamicTags : true,
+          enableDeliverabilityScanner !== undefined ? enableDeliverabilityScanner : true,
+          enableAttachments !== undefined ? enableAttachments : true,
+          enablePlainTextFallback !== undefined ? enablePlainTextFallback : true,
         ],
       );
       res.json({ success: true });
@@ -2506,6 +2582,14 @@ async function startServer() {
         smtp_user,
         smtpPass,
         smtp_pass,
+        open_tracking,
+        openTracking,
+        click_tracking,
+        clickTracking,
+        track_opens,
+        trackOpens,
+        track_clicks,
+        trackClicks,
       } = req.body;
 
       if (!to || !subject) {
@@ -2671,12 +2755,31 @@ async function startServer() {
         ? `${req.protocol}://${req.get("host")}`
         : undefined;
 
+      let allowTracking = false;
+      let defaultUnsubUrl: string | undefined;
+      let enableGlobalUnsub = true;
+
+      if (hasRealDatabaseUrl) {
+        try {
+          const { rows: stRows } = await pool.query(
+            "SELECT enable_resend_tracking, default_unsubscribe_url, enable_global_unsubscribe FROM neon_settings LIMIT 1"
+          );
+          if (stRows.length > 0) {
+            allowTracking = stRows[0].enable_resend_tracking === true;
+            defaultUnsubUrl = stRows[0].default_unsubscribe_url;
+            enableGlobalUnsub = stRows[0].enable_global_unsubscribe !== false;
+          }
+        } catch {}
+      }
+
       const antiSpam = generateAntiSpamHeaders({
         fromEmail: formattedFrom,
         recipientEmail: recipientList[0],
         replyTo: rawReplyTo,
         autoReplyTo: isAutoReplyTo,
         unsubscribeUrl: typeof unsubscribeUrl === "string" ? unsubscribeUrl : undefined,
+        defaultUnsubscribeUrl: defaultUnsubUrl,
+        enableGlobalUnsubscribe: enableGlobalUnsub,
         enableOneClickUnsubscribe: enableOneClickUnsubscribe !== false,
         customHeaders: headers && typeof headers === "object" ? headers : {},
         origin: requestOrigin,
@@ -2689,6 +2792,12 @@ async function startServer() {
       if (antiSpam.headers && Object.keys(antiSpam.headers).length > 0) {
         emailPayload.headers = antiSpam.headers;
       }
+
+      // Tracking flags: only enable if both Admin Master Switch is ON and caller requested tracking
+      const isRequestedOpenTracking = Boolean(open_tracking ?? openTracking ?? track_opens ?? trackOpens);
+      const isRequestedClickTracking = Boolean(click_tracking ?? clickTracking ?? track_clicks ?? trackClicks);
+      emailPayload.open_tracking = allowTracking && isRequestedOpenTracking;
+      emailPayload.click_tracking = allowTracking && isRequestedClickTracking;
 
       // 4. Attachments
       if (attachments && Array.isArray(attachments) && attachments.length > 0) {

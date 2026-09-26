@@ -153,6 +153,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     maintenanceMode: false,
     companyName: 'Your Company',
     companyAddress: '123 Business Rd, City, Country',
+    defaultUnsubscribeUrl: 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}',
+    enableOneClickUnsubscribe: true,
+    enableGlobalUnsubscribe: true,
+    enableResendTracking: false,
+    enableAutoReplyTo: true,
+    defaultSubject: 'Update regarding your account {name}',
+    enableDynamicTags: true,
+    enableDeliverabilityScanner: true,
+    enableAttachments: true,
+    enablePlainTextFallback: true,
   });
   const [neonHealth, setNeonHealth] = useState<NeonHealthResponse | null>(null);
   const [domains, setDomains] = useState<RegisteredDomain[]>([]);
@@ -852,9 +862,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Anti-Spam: Dynamic RFC-8058 List-Unsubscribe, List-Unsubscribe-Post & Reply-To Routing
     const effectiveReplyTo = (currentTask.replyTo || contentRef.current.replyTo || '').trim();
-    const effectiveAutoReplyTo = currentTask.autoReplyTo ?? contentRef.current.autoReplyTo ?? true;
+    const effectiveAutoReplyTo = currentTask.autoReplyTo ?? contentRef.current.autoReplyTo ?? settingsRef.current.enableAutoReplyTo ?? true;
     const effectiveUnsubscribeUrl = (currentTask.unsubscribeUrl || contentRef.current.unsubscribeUrl || '').trim();
-    const isOneClickUnsubscribe = currentTask.enableOneClickUnsubscribe ?? contentRef.current.enableOneClickUnsubscribe ?? true;
+    const isOneClickUnsubscribe = currentTask.enableOneClickUnsubscribe ?? contentRef.current.enableOneClickUnsubscribe ?? settingsRef.current.enableOneClickUnsubscribe ?? true;
+    const isGlobalUnsubscribe = settingsRef.current.enableGlobalUnsubscribe ?? true;
+    const defaultUnsubUrl = settingsRef.current.defaultUnsubscribeUrl || 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}';
 
     const { replyTo: sanitizedReplyTo, headers: antiSpamHeaders } = generateAntiSpamHeaders({
       fromEmail: formattedFrom,
@@ -862,9 +874,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       replyTo: effectiveReplyTo,
       autoReplyTo: effectiveAutoReplyTo,
       unsubscribeUrl: effectiveUnsubscribeUrl,
+      defaultUnsubscribeUrl: defaultUnsubUrl,
+      enableGlobalUnsubscribe: isGlobalUnsubscribe,
       enableOneClickUnsubscribe: isOneClickUnsubscribe,
       origin: typeof window !== 'undefined' ? window.location.origin : undefined,
     });
+
+    // Tracking flags: master kill-switch enforced to eliminate phishing redirect flags
+    const trackingMasterEnabled = settingsRef.current.enableResendTracking === true;
+    const isTrackOpens = trackingMasterEnabled && Boolean(contentRef.current.trackOpens);
+    const isTrackClicks = trackingMasterEnabled && Boolean(contentRef.current.trackClicks);
 
     try {
       const res = await sendEmailViaResend({
@@ -898,6 +917,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         smtp_user: selectedApi.smtp_user || selectedApi.smtpUser,
         smtpPass: selectedApi.smtpPass || selectedApi.smtp_pass,
         smtp_pass: selectedApi.smtp_pass || selectedApi.smtpPass,
+        trackOpens: isTrackOpens,
+        trackClicks: isTrackClicks,
+        open_tracking: isTrackOpens,
+        click_tracking: isTrackClicks,
       });
 
       const afterTask = tasksRef.current.find((t) => t.id === taskId);

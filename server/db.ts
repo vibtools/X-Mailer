@@ -205,6 +205,16 @@ export async function initDatabase() {
           maintenance_mode BOOLEAN DEFAULT FALSE,
           company_name VARCHAR(255) DEFAULT 'Your Company',
           company_address TEXT DEFAULT '123 Business Rd, City, Country',
+          default_unsubscribe_url TEXT DEFAULT 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}',
+          enable_one_click_unsubscribe BOOLEAN DEFAULT TRUE,
+          enable_global_unsubscribe BOOLEAN DEFAULT TRUE,
+          enable_resend_tracking BOOLEAN DEFAULT FALSE,
+          enable_auto_reply_to BOOLEAN DEFAULT TRUE,
+          default_subject VARCHAR(255) DEFAULT 'Update regarding your account {name}',
+          enable_dynamic_tags BOOLEAN DEFAULT TRUE,
+          enable_deliverability_scanner BOOLEAN DEFAULT TRUE,
+          enable_attachments BOOLEAN DEFAULT TRUE,
+          enable_plain_text_fallback BOOLEAN DEFAULT TRUE,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -396,6 +406,38 @@ export async function initDatabase() {
         `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS company_address TEXT DEFAULT '123 Business Rd, City, Country';`,
       ).catch(() => {});
 
+      // Phase 1 Hardening: Content Settings & Global Deliverability Defaults
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS default_unsubscribe_url TEXT DEFAULT 'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}';`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_one_click_unsubscribe BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_global_unsubscribe BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_resend_tracking BOOLEAN DEFAULT FALSE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_auto_reply_to BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS default_subject VARCHAR(255) DEFAULT 'Update regarding your account {name}';`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_dynamic_tags BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_deliverability_scanner BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_attachments BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_settings ADD COLUMN IF NOT EXISTS enable_plain_text_fallback BOOLEAN DEFAULT TRUE;`,
+      ).catch(() => {});
+
       // Initialize default settings if empty
       const checkSettings = await client.query(
         "SELECT COUNT(*) FROM neon_settings",
@@ -405,11 +447,16 @@ export async function initDatabase() {
           INSERT INTO neon_settings (
             id, site_name, site_logo, favicon, support_email, neon_connection_string,
             neon_status, default_delay_ms, default_sender_email, default_sender_name,
-            company_name, company_address
+            company_name, company_address, default_unsubscribe_url, enable_one_click_unsubscribe,
+            enable_global_unsubscribe, enable_resend_tracking, enable_auto_reply_to, default_subject,
+            enable_dynamic_tags, enable_deliverability_scanner, enable_attachments, enable_plain_text_fallback
           ) VALUES (
             'default_settings', 'R Sender', '', '✉️', 'support@rsender.io',
             '', 'connected', 3000, '', 'R Sender Dispatcher',
-            'Your Company', '123 Business Rd, City, Country'
+            'Your Company', '123 Business Rd, City, Country',
+            'https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}', TRUE,
+            TRUE, FALSE, TRUE, 'Update regarding your account {name}',
+            TRUE, TRUE, TRUE, TRUE
           )
         `);
       }

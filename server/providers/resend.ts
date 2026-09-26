@@ -17,12 +17,23 @@ export async function sendWithResend(
     };
   }
 
+  // Anti-Phishing Guard: Default tracking to false to prevent resend.com/c/ redirects and spam penalties
+  const openTracking = payload.open_tracking !== undefined
+    ? Boolean(payload.open_tracking)
+    : (payload.track_opens !== undefined ? Boolean(payload.track_opens) : false);
+
+  const clickTracking = payload.click_tracking !== undefined
+    ? Boolean(payload.click_tracking)
+    : (payload.track_clicks !== undefined ? Boolean(payload.track_clicks) : false);
+
   const resendPayload: Record<string, any> = {
     from: payload.from,
     to: [payload.to],
     subject: payload.subject,
     html: payload.html || "",
     text: payload.text || undefined,
+    open_tracking: openTracking,
+    click_tracking: clickTracking,
   };
 
   if (payload.headers && Object.keys(payload.headers).length > 0) {

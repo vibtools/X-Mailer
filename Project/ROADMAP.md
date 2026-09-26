@@ -1,211 +1,165 @@
-# 🗺️ Production Execution Roadmap: 7-Phase Deliverability & Anti-Spam Hardening
+# 🗺️ Production Execution Roadmap: 5-Phase Production Hardening Campaign
 
-**Document ID:** `ROADMAP-2026-09-26-7PHASE-EXECUTION`  
-**Execution Strategy:** Strict Sequential Phased Delivery (Phase 1 through Phase 7)  
-**Goal:** Completely eliminate the 7 root-cause deliverability vulnerabilities identified in `FORENSIC_AUDIT_REPORT.md` while maintaining 100% production readiness, zero regressions, and exact scope locks.  
+**Document ID:** `ROADMAP-2026-09-26-5PHASE-PROD-HARDENING`  
+**Execution Strategy:** Strict Sequential Phased Delivery (Phase 1 through Phase 5)  
+**Goal:** Completely eliminate the 5 core vulnerabilities identified in `FORENSIC_AUDIT_REPORT.md` while introducing the Admin "Content Settings" page and bulletproof delivery architecture.  
 **Baseline State:** `FROZEN AT 2026-09-26`
 
 ---
 
-## High-Level 7-Phase Strategic Flow
+## High-Level 5-Phase Strategic Flow
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 1: List-Unsubscribe Header Sanitation (Bug 01)                       │
-│ ➔ Eliminate synthetic 404 URLs; enforce pure genuine HTTPS One-Click        │
+│ PHASE 1: Admin Panel "Content Settings" Page & Global Unsubscribe Engine   │
+│ ➔ Build Admin Content Settings Page; Master Feature Toggles (ON/OFF);       │
+│   Default Unsubscribe URL (https://unsubscribe.sotflo.com/unsubscribe)      │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 2: Identity & Sender Display Name Alignment (Bug 02)                  │
-│ ➔ Remove hardcoded "Sarah from R Sender"; align sender names with domain     │
+│ PHASE 2: Resend Tracking Deactivation & Dual-Runtime Provider Parity        │
+│ ➔ Disable Resend open/click tracking to prevent phishing redirect penalties;│
+│   Fix Custom SMTP channel routing on Cloudflare Pages Functions             │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3: Reply-To Route Protection & Dead Mailbox Elimination (Bug 03)       │
-│ ➔ Stop auto-generating fake support@ subdomains; default to real sender     │
+│ PHASE 3: Task Runner Exception Resilience & Recipient State Immunity         │
+│ ➔ Eliminate stuck 'sending' state on fetch errors; fix stale index race;     │
+│   Ensure 100% reliable retry mechanism for failed/orphaned dispatches       │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4: Custom SMTP RFC 5322 Message-ID Generation (Bug 04)                │
-│ ➔ Generate domain-aligned Message-ID; prevent cloud hostname leaks          │
+│ PHASE 4: S3/Supabase Attachment Streaming & Base64 Pipeline Sanitization    │
+│ ➔ Eliminate client-side CORS attachment drops; stream attachments reliably; │
+│   Strip 'data:*/*;base64,' prefixes to prevent binary corruption            │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 5: MIME Multipart Body Fallback Hardening (Bug 05)                    │
-│ ➔ Eliminate "Hello {name}" stub penalties; guarantee robust dual MIME       │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 6: Rate Limiting & Resend 429 Adaptive Backoff (Bug 06)               │
-│ ➔ Prevent spambot burst penalties; handle 429 rate limits gracefully        │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 7: Custom SMTP TLS Security Hardening (Bug 07)                        │
-│ ➔ Enforce strict TLS certificate verification by default for MTA-STS/DANE   │
+│ PHASE 5: Sender Identity Safeguard & RFC 5322 Display Name Quoting          │
+│ ➔ Prevent internal API key labels from leaking into From: headers;          │
+│   Enforce RFC 5322 quoting for display names with commas and symbols        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📌 Phase 1: List-Unsubscribe Header Sanitation & Fake URL Elimination
-- **Target Vulnerability:** Bug 01 (RFC 8058 One-Click Unsubscribe 404 Probes)
-- **Primary Objective:** Ensure outbound messages only contain genuine, valid HTTPS unsubscribe headers and never emit synthetic URLs that fail compliance probes.
-- **Files to Modify:**
-  - `src/utils/antiSpamHeaders.ts`
+## 📌 Phase 1: Admin Panel "Content Settings" Page & Global Unsubscribe Engine
+
+- **Target Vulnerability:** Vulnerability 01 (Inactive RFC 8058 List-Unsubscribe Header on unconfigured user templates)
+- **Primary Objective:** 
+  1. Build a new administrative page `AdminContentSettingsPage.tsx` under `src/components/admin/` and add it to `AdminLayout.tsx` navigation.
+  2. Implement comprehensive controls for content defaults:
+     - Master feature toggles (ON/OFF) for all content features.
+     - Default Unsubscribe URL setting with instant fallback to `https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}`.
+     - Global One-Click Unsubscribe (RFC 8058) master toggle.
+     - Master kill-switch for Resend Tracking (Open & Click Tracking).
+     - Default Auto Reply-To policy toggle.
+     - Default Sender Name and Subjects.
+  3. Extend `neon_settings` schema in `server/db.ts` and `functions/api/[[catchall]].ts` with persistent columns.
+  4. Wire `antiSpamHeaders.ts` and `AppContext.tsx` so that when a user leaves `unsubscribeUrl` blank, the system automatically uses the Admin Default Unsubscribe URL, ensuring 100% of emails carry RFC 8058 `List-Unsubscribe` and `List-Unsubscribe-Post` headers.
+- **Target Files:**
+  - `src/components/admin/AdminContentSettingsPage.tsx` (New)
+  - `src/components/admin/AdminLayout.tsx` (Modified)
+  - `server/db.ts` (Modified schema migrations)
+  - `server.ts` (Modified settings endpoints)
+  - `functions/api/[[catchall]].ts` (Synchronized settings endpoints)
+  - `src/services/apiService.ts` (Modified settings model)
+  - `src/types/index.ts` (Modified `SystemSettings` type)
+  - `src/utils/antiSpamHeaders.ts` (Updated fallback URL resolution)
+  - `src/context/AppContext.tsx` (Wired settings into dispatch flow)
+- **Scope Lock & Invariants:**
+  - Do not modify user authentication logic or task queue state transitions.
+  - Do not touch existing `AdminSettingsPage.tsx` (branding/database settings remain separate).
+- **Verification Criteria:**
+  - Navigate to `/vcon` -> "Content Settings" tab and verify all toggles and inputs save and load from database.
+  - Dispatch a task with blank user unsubscribe URL; inspect headers and confirm `List-Unsubscribe: <https://unsubscribe.sotflo.com/unsubscribe?email=...>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` are attached.
+  - `npm run lint` and `npm run build` pass with 0 errors.
+
+---
+
+## 📌 Phase 2: Resend Tracking Deactivation & Dual-Runtime Provider Parity
+
+- **Target Vulnerability:** Vulnerability 02 (Resend Tracking Phishing Flag & Cloudflare Pages SMTP Crash)
+- **Primary Objective:**
+  1. Pass `open_tracking: false` and `click_tracking: false` (or admin setting values) in Resend API dispatches in `server/providers/resend.ts` and `functions/api/[[catchall]].ts`.
+  2. Prevent Resend from rewriting URLs into `resend.com/c/...`, eliminating the `#1` SpamAssassin and anti-phishing gateway penalty (`PHISH_URL_MISMATCH`).
+  3. Update `functions/api/[[catchall]].ts` to gracefully handle Custom SMTP channels (routing cleanly or providing clear diagnostics, and binding `/api/send` alongside `/api/resend/send`).
+- **Target Files:**
+  - `server/providers/resend.ts`
   - `functions/api/[[catchall]].ts`
-- **Implementation Tasks:**
-  1. Inspect `options.unsubscribeUrl`. If the user provided a non-empty, valid HTTPS URL, format and attach:
-     - `List-Unsubscribe: <${cleanUrl}>`
-     - `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
-  2. If `options.unsubscribeUrl` is empty or unconfigured, do **NOT** fabricate `https://${domain}/unsubscribe?email=...`.
-  3. Ensure zero synthetic `mailto:unsubscribe@${domain}` strings are generated.
-- **Scope Lock & Invariants:**
-  - Do not modify subject or body interpolation.
-  - Do not change recipient lists or task execution order.
-- **Verification Criteria:**
-  - Unit test verifying header output when `unsubscribeUrl` is present vs. empty.
-  - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## 📌 Phase 2: Sender Display Name & Identity Mismatch Elimination
-- **Target Vulnerability:** Bug 02 (Hardcoded "Sarah from R Sender" & "R Sender Support")
-- **Primary Objective:** Eradicate all hardcoded fallback names and subjects that trigger brand/identity mismatches on custom business domains.
-- **Files to Modify:**
   - `server.ts`
-  - `src/context/AppContext.tsx`
-  - `src/components/pages/TasksPage.tsx`
-- **Implementation Tasks:**
-  1. In `src/context/AppContext.tsx` (`runNextEmail`):
-     - If `senderName` is omitted in the task/content, derive it from:
-       (a) The active API channel's `name`, or
-       (b) The local user part of the sender email (e.g. `billing` from `billing@domain.com`), or
-       (c) System configured `companyName`.
-     - Remove `'Sarah from R Sender'` and `'R Sender'`.
-  2. In `src/components/pages/TasksPage.tsx`:
-     - Change default fallback sender name from `'R Sender Support'` to the active API key name.
-  3. In `server.ts`:
-     - Clean up seed/fallback data in `/api/content` to eliminate `"Sarah from R Sender"`.
+  - `src/services/apiService.ts`
 - **Scope Lock & Invariants:**
-  - Do not alter the task queue state machine or database schemas.
-  - Do not modify the UI styling of the tasks page.
+  - Do not alter the Nodemailer SMTP transport configuration in `server/providers/smtp.ts`.
+  - Do not modify frontend UI components.
 - **Verification Criteria:**
-  - Dispatch test email with blank sender name; verify outgoing `From` header displays proper business name or API name.
+  - Verify Resend payload contains explicit tracking flags.
+  - Test `/api/send` endpoint responsiveness in both Express and edge mock.
   - `npm run lint` and `npm run build` pass with 0 errors.
 
 ---
 
-## 📌 Phase 3: Reply-To Route Protection & Dead Mailbox Callout Elimination
-- **Target Vulnerability:** Bug 03 (Synthetic `support@${senderDomain}` causing MX probe 550 errors)
-- **Primary Objective:** Guarantee that Reply-To headers never point to non-existent mailboxes; default cleanly to the authenticated sender address if unconfigured.
-- **Files to Modify:**
+## 📌 Phase 3: Task Runner Exception Resilience & Recipient State Machine Immunity
+
+- **Target Vulnerability:** Vulnerability 03 (Unhandled dispatch exceptions freeze recipients in `'sending'` state permanently; race condition on index mutation)
+- **Primary Objective:**
+  1. In `src/context/AppContext.tsx` (`runNextEmail`):
+     - Wrap dispatch execution in a resilient state-machine handler: on any caught exception, immediately mark the recipient as `'failed'` with the exact error message.
+     - Lookup recipients by immutable email address (`recs.findIndex(r => r.email === recipient.email)`) instead of stale closure index.
+  2. Update `retryFailedRecipients` to reset both `'failed'` and any orphaned `'sending'` records back to `'pending'`.
+  3. Ensure task progress and failure logs reflect actual execution status without manual page reload.
+- **Target Files:**
+  - `src/context/AppContext.tsx`
+- **Scope Lock & Invariants:**
+  - Do not change task database table schemas.
+  - Do not alter the adaptive backoff algorithm for HTTP 429 rate limit responses.
+- **Verification Criteria:**
+  - Simulate an abrupt network disconnect or server 500 error; verify recipient is marked `'failed'`, error log appears in task card, and task runner proceeds to the next contact.
+  - Verify "Retry Failed" successfully resets all failed contacts.
+  - `npm run lint` and `npm run build` pass with 0 errors.
+
+---
+
+## 📌 Phase 4: S3/Supabase Attachment Streaming & Base64 Pipeline Sanitization
+
+- **Target Vulnerability:** Vulnerability 04 (Silent attachment drops on client-side S3 CORS block; base64 header corruption)
+- **Primary Objective:**
+  1. Introduce a server-side attachment proxy endpoint (`GET /api/storage/attachment/:id` or cached buffer serving) to eliminate browser CORS restrictions.
+  2. In `AppContext.tsx`, fetch attachments through the same-origin backend proxy if direct fetch fails, ensuring attachments are never silently dropped.
+  3. In `server.ts` and `server/providers/smtp.ts`, sanitize all base64 attachment strings by stripping any leading `data:*;base64,` prefixes before passing to Resend and Nodemailer.
+- **Target Files:**
+  - `src/context/AppContext.tsx`
+  - `server.ts`
+  - `server/providers/smtp.ts`
+  - `server/providers/resend.ts`
+  - `server/storage.ts`
+- **Scope Lock & Invariants:**
+  - Do not modify S3 upload logic in `ContentPage.tsx`.
+  - Do not touch Supabase credential management in `AdminStorageSettingsPage.tsx`.
+- **Verification Criteria:**
+  - Upload a PDF attachment and execute a dispatch; verify the email arrives with the PDF fully intact and readable.
+  - Verify base64 files with data URL headers decode cleanly without corrupting the file header.
+  - `npm run lint` and `npm run build` pass with 0 errors.
+
+---
+
+## 📌 Phase 5: Sender Identity Safeguard & RFC 5322 Display Name Quoting
+
+- **Target Vulnerability:** Vulnerability 05 (Internal API key labels leak into email `From:` header; unquoted display names with commas cause header syntax errors)
+- **Primary Objective:**
+  1. In `src/context/AppContext.tsx`:
+     - Remove the logic that substitutes `selectedApi.name` as `rawSenderName`.
+     - Derive display names strictly from: (a) user-configured content name, (b) verified domain brand, (c) company name, or (d) clean neutral `"Support Team"`.
+  2. In `server.ts` and `src/utils/antiSpamHeaders.ts`:
+     - Enforce RFC 5322 Section 3.4 quoting: if a display name contains commas, semicolons, or quotes, format as `"${cleanName}" <${email}>`.
+- **Target Files:**
+  - `src/context/AppContext.tsx`
+  - `server.ts`
   - `src/utils/antiSpamHeaders.ts`
-  - `functions/api/[[catchall]].ts`
-- **Implementation Tasks:**
-  1. In `resolveAutoReplyTo`:
-     - If user specified an external Reply-To address (e.g. `support@gmail.com` or `helpdesk@company.com`), preserve it 100% untouched.
-     - If user left Reply-To empty, default to `senderBareEmail` (the actual sender address).
-     - Completely eliminate the fallback line `return senderDomain && senderDomain !== 'resend.dev' ? support@${senderDomain} : undefined`.
-  2. Synchronize Cloudflare Pages edge runtime in `functions/api/[[catchall]].ts` with identical logic.
 - **Scope Lock & Invariants:**
-  - Do not change From header or To header.
-  - Do not alter sanitization logic in `sanitizeReplyTo`.
+  - Do not modify email interpolation of `{name}` or `{company}`.
+  - Do not touch SMTP transport credentials.
 - **Verification Criteria:**
-  - Verify Reply-To output when empty equals `senderBareEmail`.
-  - Verify external custom emails remain untouched.
+  - Name an API key `"Test Key 99"`; dispatch an email and confirm the email `From:` header displays the company name or clean sender name, never `"Test Key 99"`.
+  - Dispatch with display name `"Doe, John"`; verify outgoing header is formatted as `"Doe, John" <john@domain.com>`.
   - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## 📌 Phase 4: Custom SMTP RFC 5322 Message-ID Generation
-- **Target Vulnerability:** Bug 04 (Internal cloud hostname leak in SMTP Message-ID)
-- **Primary Objective:** Generate an RFC 5322 compliant `Message-ID` header using the sender's authenticated domain, eliminating `MSGID_FROM_MTA_HEADER` penalties.
-- **Files to Modify:**
-  - `server/providers/smtp.ts`
-- **Implementation Tasks:**
-  1. In `server/providers/smtp.ts` (`sendMail`):
-     - Extract the sender domain from `payload.from` (or `channel.sender_email`).
-     - Generate a cryptographically secure, unique Message-ID:
-       `const messageId = <${Date.now()}.${crypto.randomBytes(8).toString('hex')}@${senderDomain}>;`
-     - Attach `messageId` to Nodemailer's `mailOptions`.
-     - If user passes a custom `Message-ID` in `payload.headers`, preserve the user's header.
-- **Scope Lock & Invariants:**
-  - Do not alter SMTP credentials or socket connection parameters.
-  - Do not touch Resend provider logic.
-- **Verification Criteria:**
-  - Verify outgoing SMTP email contains properly formatted `<timestamp.hex@senderdomain>`.
-  - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## 📌 Phase 5: MIME Multipart Body Fallback Hardening
-- **Target Vulnerability:** Bug 05 (Stub body penalties: "Hello {name}", "Notification from R Sender")
-- **Primary Objective:** Prevent sending messages with stub or empty bodies that trigger SpamAssassin `EMPTY_MESSAGE` and `SHORT_BODY` rules.
-- **Files to Modify:**
-  - `server.ts`
-  - `src/context/AppContext.tsx`
-- **Implementation Tasks:**
-  1. In `AppContext.tsx` (`runNextEmail`):
-     - If `finalHtml` is present but `finalText` is empty, auto-generate `finalText` using `htmlToPlainText(finalHtml)`.
-     - If both `finalHtml` and `finalText` are empty, log an error and skip/halt rather than injecting `"Hello {name}"`.
-  2. In `server.ts` (`/api/resend/send` & `/api/smtp/send`):
-     - If HTML is provided and text is omitted, auto-generate text from HTML using the server-side text stripper.
-     - Reject requests that have zero body content with HTTP 400 Bad Request instead of defaulting to `"Notification from R Sender"`.
-- **Scope Lock & Invariants:**
-  - Do not modify user's HTML template content or formatting.
-  - Do not alter the editor UI.
-- **Verification Criteria:**
-  - Send HTML-only email; verify dual multipart MIME text is generated automatically.
-  - Send empty body request; verify clean validation error without sending spam stubs.
-  - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## 📌 Phase 6: Rate Limiting & Resend 429 Adaptive Backoff
-- **Target Vulnerability:** Bug 06 (Spambot burst rate penalties & Resend 429 failures)
-- **Primary Objective:** Implement adaptive retry/backoff for Resend API rate limits (HTTP 429) and safe default task pacing.
-- **Files to Modify:**
-  - `src/context/AppContext.tsx`
-  - `server.ts`
-- **Implementation Tasks:**
-  1. In `src/context/AppContext.tsx` (`runNextEmail`):
-     - Detect HTTP 429 `rate_limit_exceeded` responses from the dispatch API.
-     - When a 429 occurs, pause the task queue for an adaptive backoff window (e.g. 3000ms), and retry the current recipient (up to 3 attempts) rather than instantly marking them failed.
-     - Log a clear informational message in live logs: `"Rate limit encountered. Backing off for 3s before retry..."`.
-  2. Ensure default task creation delay in `server.ts` defaults to 3000ms.
-- **Scope Lock & Invariants:**
-  - Do not alter the recipient CSV parser or task data structure.
-  - Retain user ability to customize delays in task creation.
-- **Verification Criteria:**
-  - Simulate 429 response; verify queue pauses and retries smoothly without dropping recipients.
-  - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## 📌 Phase 7: Custom SMTP TLS Security Hardening
-- **Target Vulnerability:** Bug 07 (Insecure TLS `rejectUnauthorized: false` flag)
-- **Primary Objective:** Enforce strict SSL/TLS certificate verification by default for custom SMTP connections to meet MTA-STS and DANE security standards.
-- **Files to Modify:**
-  - `server/providers/smtp.ts`
-  - `server.ts`
-- **Implementation Tasks:**
-  1. In `server/providers/smtp.ts`:
-     - Update transporter configuration to set `rejectUnauthorized: true` by default.
-     - Allow `rejectUnauthorized: false` only if the user explicitly passes an `ignoreTlsErrors: true` flag for private/self-signed testing.
-  2. In `server.ts` (`/api/smtp/verify`):
-     - Ensure probe verification tests real SSL/TLS certificates and reports certificate validation status.
-- **Scope Lock & Invariants:**
-  - Do not break standard port 465 (SSL) and port 587 (STARTTLS) connection handling.
-  - Ensure zero impact on Resend API channels.
-- **Verification Criteria:**
-  - Verify TLS handshake succeeds with strict certificate validation against standard mail relays.
-  - `npm run lint` and `npm run build` pass with 0 errors.
-
----
-
-## Acceptance Criteria Across All Phases
-1. **Zero Fake/Mock Policy (Rule 01):** All logic must be 100% real, functional, and production-tested.
-2. **Scope Discipline:** Only touch the exact files specified in each phase's scope lock.
-3. **No Breaking Changes:** Zero regressions in existing features, UI, or database operations.
-4. **Verification:** Every phase must pass `tsc --noEmit` and `compile_applet` before progressing to the next.

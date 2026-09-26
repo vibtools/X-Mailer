@@ -1,227 +1,186 @@
-# 🔍 Forensic Audit Report: User Panel Email Sending & Deliverability Pipeline
+# 🔬 Forensic Audit & Vulnerability Report: Email Sending Architecture
 
-**Document ID:** `FAR-2026-09-26-PROD-AUDIT`  
-**System:** R Sender Bulk Email Automation & Multi-Channel Dispatch Engine  
-**Target:** User Panel Email Pipeline, Resend API Provider, Custom SMTP Engine, Header Generator & Task Runner  
-**Audit Scope:** In-depth forensic identification of 7 critical deliverability bugs and anti-spam code triggers causing emails to land in Spam/Junk despite 100% valid domain DNS (SPF, DKIM, DMARC)  
-**Baseline State:** `FROZEN AT 2026-09-26 (PRE-IMPLEMENTATION)`  
-**Status:** `AUDITED — LOCKED FOR 7-PHASE SEQUENTIAL IMPLEMENTATION`
-
----
-
-## 1. Executive Summary & Root-Cause Architecture
-
-Even with green, verified DNS records (SPF `v=spf1 ...`, DKIM `k=rsa; ...`, and DMARC `p=reject` or `p=quarantine`) configured on sending domains, emails dispatched through the platform can land in the **Spam / Junk** folder of major Mailbox Providers (Google Workspace / Gmail, Microsoft 365 / Outlook, Yahoo Mail, AOL, and corporate Secure Email Gateways like Proofpoint and Barracuda).
-
-A forensic code audit of the user panel and backend dispatch pipeline reveals that **DNS authentication is merely an identity handshake**; it proves that the sending server is authorized by the domain owner. However, modern spam filters (Google Spam Heuristics 2024+, Microsoft SmartScreen, SpamAssassin, and Bayesian statistical filters) inspect the following layers:
-1. **RFC 8058 One-Click Unsubscribe Header Integrity:** Synthetic or dead unsubscribe endpoints fail compliance probes.
-2. **Sender Display Name & Subject Alignment:** Hardcoded placeholder identities ("Sarah from R Sender") create sender-domain brand mismatches.
-3. **Reply-To & Return-Path MX Callout Probes:** Non-existent `support@${domain}` mailboxes fail automated MX delivery checks.
-4. **Message-ID Domain Alignment:** Missing Message-ID generators in custom SMTP leak internal cloud hostnames (`@...run.app` or `@localhost`).
-5. **MIME Structure & Body Completeness:** Auto-generated stub texts ("Hello {name}") trigger `EMPTY_MESSAGE` and `SHORT_BODY` spam rules.
-6. **Connection Velocity & Rate-Limit Resilience:** Unthrottled sub-second burst delays trigger automated spambot rate-limiters and Resend HTTP 429 errors.
-7. **Transport Layer Security (TLS):** Hardcoded `rejectUnauthorized: false` triggers security downgrade alerts on strict MTA-STS/DANE receiving servers.
-
-Below is the forensic proof and exact **Scope Lock** for each of the 7 identified bugs.
+**Document ID:** `FORENSIC-AUDIT-2026-09-26-PROD-HARDENING`  
+**Application Target:** R Sender / X-Mailer Full-Stack Platform  
+**Audit Scope:** Client-Side Dispatch Engine (`AppContext.tsx`), Backend Routing (`server.ts`, `functions/api/[[catchall]].ts`), Provider Engine (`server/providers/`), Content & Template Utilities (`antiSpamHeaders.ts`, `dynamicTags.ts`, `htmlToPlainText.ts`).  
+**Baseline State:** `FROZEN AT 2026-09-26`  
+**Methodology:** Static code analysis, execution tracing, RFC compliance verification (RFC 8058, RFC 5322, RFC 2046), and provider API contracts (Resend REST API, Nodemailer SMTP).
 
 ---
 
-## 2. Forensic Analysis of the 7 Bugs & Scope Locks
+## Executive Summary
+
+A thorough, evidence-based forensic investigation of the email dispatch pipeline was conducted. The audit verified that while foundational multi-provider routing and deliverability checks exist, **five critical vulnerabilities** exist in the code that directly cause task execution freezes, silent failure modes, deliverability degradation, and spam classification.
+
+Each issue is documented below with **exact file paths, line numbers, verbatim code citations, technical root cause, and strict Phase Scope Locks**.
 
 ---
 
-### 🚨 Bug 01: Synthetic / Fake `List-Unsubscribe` URL Generation (RFC 8058 Violation)
-- **Code Locations:** 
-  - `src/utils/antiSpamHeaders.ts` (Lines 240–261)
-  - `functions/api/[[catchall]].ts` (Unsubscribe header generation)
-- **Problematic Code Pattern:**
+## 🔍 Vulnerability Inventory & Root Cause Analysis
+
+### 🔴 Vulnerability 01: Inactive RFC 8058 List-Unsubscribe Header by Default (Spam Penalty)
+- **Files Affected:**
+  - `src/utils/antiSpamHeaders.ts` (Lines 206–269)
+  - `src/context/AppContext.tsx` (Lines 854–867)
+  - `src/components/pages/TasksPage.tsx` (Line 173)
+  - `src/components/pages/ContentPage.tsx` (Line 169)
+- **Code Proof:**
   ```typescript
-  // Synthesize compliant HTTPS unsubscribe endpoint
-  const base = origin && origin.startsWith('https://')
-    ? origin
-    : `https://${domain}`;
-  finalUnsubUrl = `${base.replace(/\/$/, '')}/unsubscribe?email=${encodedRecipient}`;
+  // src/utils/antiSpamHeaders.ts (Lines 214–220, 256–268)
+  const cleanCustomUrl = unsubscribeUrl ? sanitizeHeaderValue(unsubscribeUrl).trim() : '';
 
-  resultHeaders['List-Unsubscribe'] = `<${finalUnsubUrl}>`;
-  resultHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
-  ```
-- **Technical Forensic Analysis:**
-  1. When a user creates a task or sends an email without entering a dedicated `Unsubscribe URL` in Content settings, the header engine automatically fabricates `https://${domain}/unsubscribe?email=...` and injects RFC 8058 headers.
-  2. The sender's custom domain (or sending subdomain) has **no `/unsubscribe` HTTP route or POST handler**.
-  3. Under the **Google & Yahoo 2024 Bulk Sender Mandates (RFC 8058)**, mail client compliance bots send an automated background HTTP POST request to test the unsubscribe endpoint.
-  4. When that request receives `HTTP 404 Not Found` or `Connection Refused`, the domain is penalized for **RFC Deceptive/Fraudulent Unsubscribe Headers**, immediately dropping domain reputation and routing messages to Spam.
-- **Exact Scope Lock (Phase 1):**
-  - **Allowed Scope:** 
-    - Only emit `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` if a genuine, user-configured, or verified HTTPS unsubscribe endpoint is provided.
-    - If no unsubscribe URL is provided, do NOT fabricate a fake `https://${domain}/unsubscribe` URL.
-    - Never inject dead `mailto:` addresses.
-  - **Forbidden Scope:** Do not touch other header sanitizers, do not alter body content, do not change task execution flow.
-
----
-
-### 🚨 Bug 02: Hardcoded Fallback Sender Name & Subject ("Sarah from R Sender")
-- **Code Locations:**
-  - `server.ts` (Line 1144: `senderNames: ["Sarah from R Sender"]`)
-  - `src/context/AppContext.tsx` (Line 42: `'Sarah from R Sender'`, Line 710: `rawSenderName = selectedApi.name || 'R Sender'`)
-  - `src/components/pages/TasksPage.tsx` (Lines 164–165: `'R Sender Support'`, `'Bulk notification {name}'`)
-- **Problematic Code Pattern:**
-  ```typescript
-  // TasksPage.tsx (Lines 164-165):
-  senderName: (content?.senderNames && content.senderNames[0]) || 'R Sender Support',
-  subject: (content?.subjects && content.subjects[0]) || 'Bulk notification {name}',
-
-  // AppContext.tsx (Line 710):
-  if (!rawSenderName) {
-    rawSenderName = selectedApi.name || 'R Sender';
+  if (cleanCustomUrl) {
+    ...
+    resultHeaders['List-Unsubscribe'] = `<${finalUnsubUrl}>`;
+    resultHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  } else {
+    // When cleanCustomUrl is empty and no explicit mailto is passed:
+    // NO List-Unsubscribe and NO List-Unsubscribe-Post headers are generated!
   }
   ```
-- **Technical Forensic Analysis:**
-  1. When a user sends emails from an authenticated custom business domain (e.g. `billing@acme.com`), but leaves the sender display name blank in Content settings or task creation, the system forcibly sends `"Sarah from R Sender"` or `"R Sender Support"`.
-  2. Spam filters (SpamAssassin, Microsoft SmartScreen) detect an explicit **Brand/Identity Mismatch** between the sending domain (`acme.com`) and the display identity (`R Sender`).
-  3. This mismatch triggers heuristic anti-spoofing flags, demoting legitimate business emails to the Junk folder.
-- **Exact Scope Lock (Phase 2):**
-  - **Allowed Scope:** 
-    - Remove all hardcoded "Sarah" and "R Sender" fallback strings.
-    - If sender name is omitted, derive it cleanly from: (1) Active API Key channel name, (2) User's configured Company Name, or (3) The username part of the authenticated From address (e.g., `billing` from `billing@acme.com`).
-    - If subject is omitted, require a meaningful subject or default to a neutral, clean subject without promotional spam triggers.
-  - **Forbidden Scope:** Do not alter the task scheduling logic, do not change database schemas, do not alter custom tag replacements.
+- **Technical Root Cause:**
+  In `TasksPage.tsx` and `ContentPage.tsx`, `unsubscribeUrl` defaults to an empty string `""`. In `AppContext.tsx`, `effectiveUnsubscribeUrl` is evaluated as `(currentTask.unsubscribeUrl || contentRef.current.unsubscribeUrl || '').trim()`. When empty, `generateAntiSpamHeaders` emits zero unsubscribe headers.
+- **Deliverability & Spam Impact:**
+  Under Google & Yahoo's 2024 Bulk Sender Mandates, all bulk email dispatches must include RFC 8058 One-Click Unsubscribe headers. Without them:
+  1. Emails fail bulk sender compliance and are automatically demoted to the **Spam / Junk folder**.
+  2. Recipients lack an in-client "Unsubscribe" action, forcing them to click **"Report Spam"**, which irreversibly damages sender domain reputation.
+- **Remediation Strategy (Phase 1):**
+  Create an **Admin Content Settings Page** (`AdminContentSettingsPage.tsx`) allowing administrators to configure a system-wide default Unsubscribe URL (e.g. `https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}`), with master feature toggles. When a user has not configured a custom URL, the system seamlessly applies the admin default, ensuring RFC 8058 compliance on 100% of dispatches.
+- **Scope Lock:** `src/components/admin/AdminContentSettingsPage.tsx`, `src/components/admin/AdminLayout.tsx`, `server/db.ts`, `server.ts`, `functions/api/[[catchall]].ts`, `src/services/apiService.ts`, `src/types/index.ts`, `src/utils/antiSpamHeaders.ts`, `src/context/AppContext.tsx`.
 
 ---
 
-### 🚨 Bug 03: Synthetic `support@domain.com` Auto Reply-To & MX Callout Failure
-- **Code Locations:**
-  - `src/utils/antiSpamHeaders.ts` (Line 164)
-  - `functions/api/[[catchall]].ts` (Reply-To resolution)
-- **Problematic Code Pattern:**
+### 🔴 Vulnerability 02: Resend Tracking Link Rewriting & Cloudflare SMTP Incompatibility
+- **Files Affected:**
+  - `server/providers/resend.ts` (Lines 20–26)
+  - `functions/api/[[catchall]].ts` (Lines 2165–2258)
+  - `src/context/AppContext.tsx` (Lines 870–901)
+- **Code Proof:**
   ```typescript
-  return senderDomain && senderDomain !== 'resend.dev' ? `support@${senderDomain}` : undefined;
-  ```
-- **Technical Forensic Analysis:**
-  1. When a user leaves `Reply-To` empty, `resolveAutoReplyTo` automatically synthesizes `support@${senderDomain}`.
-  2. Most sending domains or subdomains (e.g., `mail.domain.com`, `send.domain.com`) are configured with outbound SPF/DKIM only and have **no inbound MX record or mailbox** for `support@`.
-  3. Receiving MTAs (Corporate Office 365, Barracuda, Proofpoint) conduct an **SMTP MX Callout probe** on the `Reply-To` address. When the destination responds with `550 Mailbox does not exist` or has no MX record, the message receives a heavy **Dead/Fake Return-Path** penalty.
-- **Exact Scope Lock (Phase 3):**
-  - **Allowed Scope:**
-    - If user specifies an external Reply-To address (e.g. `support@gmail.com` or `helpdesk@company.com`), preserve it 100% untouched.
-    - If user leaves Reply-To empty, default to the **actual authenticated sender email** (`senderBareEmail`), which is guaranteed to have valid domain DNS and MX alignment. Never fabricate a synthetic `support@` mailbox.
-  - **Forbidden Scope:** Do not alter the From header, do not change recipient handling.
-
----
-
-### 🚨 Bug 04: Custom SMTP `Message-ID` Domain Mismatch & Missing Generator
-- **Code Locations:**
-  - `server/providers/smtp.ts` (Lines 78–87)
-- **Problematic Code Pattern:**
-  ```typescript
-  const mailOptions: SendMailOptions = {
+  // server/providers/resend.ts (Lines 20–26)
+  const resendPayload: Record<string, any> = {
     from: payload.from,
-    to: payload.to,
+    to: [payload.to],
     subject: payload.subject,
-    html: payload.html || undefined,
+    html: payload.html || "",
     text: payload.text || undefined,
-    headers: payload.headers || undefined,
-    replyTo: payload.reply_to || undefined,
   };
-  const info = await transporter.sendMail(mailOptions);
+  // Neither open_tracking nor click_tracking options are forwarded!
   ```
-- **Technical Forensic Analysis:**
-  1. In the custom SMTP provider, `mailOptions` does not specify an explicit RFC 5322 compliant `messageId`.
-  2. Nodemailer automatically falls back to generating a Message-ID using the server's local machine hostname (e.g., `<uuid@65114990346.asia-east1.run.app>` or `<uuid@localhost>`).
-  3. Spam filters inspect the domain in the `Message-ID` header. When `From: info@mycompany.com` but `Message-ID: <...@run.app>`, it triggers SpamAssassin rules:
-     - `MSGID_FROM_MTA_HEADER` (+1.8 penalty)
-     - `SPF_HELO_MISMATCH` / `ALIGNMENT_VARIANCE`
-  4. This mismatch causes corporate email filters to flag the message as originating from an unaligned relay, routing to Spam.
-- **Exact Scope Lock (Phase 4):**
-  - **Allowed Scope:**
-    - In `server/providers/smtp.ts`, generate an RFC 5322 compliant `Message-ID` using the sender's authenticated domain: `<${timestamp}.${randomId}@${senderDomain}>`.
-    - If a valid `Message-ID` is already passed in custom headers, preserve it.
-  - **Forbidden Scope:** Do not modify the SMTP connection credentials or transporter pool logic.
-
----
-
-### 🚨 Bug 05: Hardcoded Short/Zero Body Text Fallback ("Hello {name}", "Notification from R Sender")
-- **Code Locations:**
-  - `server.ts` (Line 2662: `emailPayload.text = "Notification from R Sender";`)
-  - `src/context/AppContext.tsx` (Line 720: `finalText = 'Hello {name}';`)
-- **Problematic Code Pattern:**
   ```typescript
-  // server.ts:
-  if (!emailPayload.html && !emailPayload.text) {
-    emailPayload.text = "Notification from R Sender";
-  }
-
-  // AppContext.tsx:
-  if (!finalHtml.trim() && !finalText.trim()) {
-    finalText = 'Hello {name}';
-  }
+  // functions/api/[[catchall]].ts (Lines 2186–2187)
+  const key = apiKey || env.RESEND_API_KEY;
+  if (!key) return errorResponse("Resend API key is required", 400);
+  // Custom SMTP channels lack apiKey, immediately crashing on Cloudflare Pages with HTTP 400!
   ```
-- **Technical Forensic Analysis:**
-  1. When an email body is empty or fails to compile, the system falls back to `"Hello {name}"` or `"Notification from R Sender"`.
-  2. Extremely short, generic body text is the exact fingerprint of automated spambots performing dictionary spam or probe attacks.
-  3. SpamAssassin explicitly penalizes this pattern under rules:
-     - `EMPTY_MESSAGE` (+2.3 penalty)
-     - `SHORT_BODY` (+1.5 penalty)
-     - `MISSING_MIME_BODY`
-- **Exact Scope Lock (Phase 5):**
-  - **Allowed Scope:**
-    - Block or warn against dispatching completely empty messages at the pre-flight stage in `AppContext.tsx` and `server.ts`.
-    - Automatically derive high-quality, multipart MIME text from the HTML body using `htmlToPlainText` if text body is blank.
-    - Eliminate the hardcoded `"Notification from R Sender"` and `"Hello {name}"` stubs.
-  - **Forbidden Scope:** Do not alter the rich text editor or user HTML template styles.
+- **Technical Root Cause:**
+  1. Resend API defaults to injecting an invisible 1x1 tracking pixel and rewriting all hyperlinks into `https://resend.com/c/...` redirect links unless explicitly disabled.
+  2. In `functions/api/[[catchall]].ts`, `/api/resend/send` only accepts Resend API keys. When a user executes a task using a Custom SMTP channel on Cloudflare Pages, `apiKey` is empty, triggering an immediate HTTP 400 rejection.
+- **Deliverability & Spam Impact:**
+  1. **Domain Mismatch & Phishing Flag (SpamAssassin `PHISH_URL_MISMATCH`):** When sending from `domain.com`, rewriting links to `resend.com/c/...` triggers corporate anti-phishing gateways (Proofpoint, Microsoft Defender), as link destinations do not match the sender's authenticated domain.
+  2. Cloudflare Pages deployments cannot dispatch via Custom SMTP channels.
+- **Remediation Strategy (Phase 2):**
+  1. Add master tracking toggles (`open_tracking: false`, `click_tracking: false`) forwarded directly to Resend API.
+  2. Upgrade `functions/api/[[catchall]].ts` to support dual-runtime parity (`/api/send` and `/api/resend/send`), routing SMTP channels gracefully or providing clear diagnostic responses.
+- **Scope Lock:** `server/providers/resend.ts`, `functions/api/[[catchall]].ts`, `server.ts`, `src/services/apiService.ts`.
 
 ---
 
-### 🚨 Bug 06: Unthrottled Rapid Dispatch Velocity (Sub-Second Delays) & Resend 429 Rate Limits
-- **Code Locations:**
-  - `src/context/AppContext.tsx` (Line 961)
-  - `server.ts` (Line 1478: `const taskDelay = delayMs !== undefined ? delayMs : 800;`)
-- **Problematic Code Pattern:**
+### 🔴 Vulnerability 03: Task Runner Exception Freeze & Recipient State Machine Stagnation
+- **Files Affected:**
+  - `src/context/AppContext.tsx` (Lines 622, 676–688, 903–916, 1020–1029)
+- **Code Proof:**
   ```typescript
-  setTimeout(() => {
-    runNextEmail(taskId);
-  }, currentTask.delayMs || 3000);
-  ```
-- **Technical Forensic Analysis:**
-  1. The Resend API free and standard tier rate limit is **2 requests/second**.
-  2. Tasks configured with delays under 1000ms (such as 300ms, 400ms, or 800ms) exceed the rate limit, triggering `HTTP 429 Too Many Requests (rate_limit_exceeded)`.
-  3. Furthermore, mailbox providers (Gmail, Outlook) immediately classify high-volume, sub-second dispatches from new or warming domains as **Automated Spambot Bursts**, triggering greylisting and bulk junk routing.
-- **Exact Scope Lock (Phase 6):**
-  - **Allowed Scope:**
-    - Implement adaptive rate-limit backoff in `AppContext.tsx`: when a 429 is encountered, automatically back off (e.g. 3–5s) and retry instead of immediately marking the recipient failed.
-    - Set the default recommended task delay to a safe 3000ms+ (with human jitter guidance in UI).
-  - **Forbidden Scope:** Do not prevent users from setting custom speeds if they possess high-tier dedicated IPs; retain user autonomy over delay settings.
+  // src/context/AppContext.tsx (Lines 677–683)
+  updatedRecipients[nextRecipientIndex] = {
+    ...recipient,
+    status: 'sending',
+    apiIdUsed: selectedApi.id,
+    apiNameUsed: selectedApi.name,
+  };
 
----
-
-### 🚨 Bug 07: Custom SMTP TLS `rejectUnauthorized: false` Flag
-- **Code Locations:**
-  - `server/providers/smtp.ts` (Line 36 & Line 148)
-- **Problematic Code Pattern:**
-  ```typescript
-  tls: {
-    rejectUnauthorized: false,
+  // Lines 1020–1022:
+  } catch (err: any) {
+    console.error('Task dispatch exception:', err);
   }
+  // The catch block NEVER resets recipient.status to 'failed' or 'pending'!
   ```
-- **Technical Forensic Analysis:**
-  1. While `rejectUnauthorized: false` was originally added to allow self-signed certificates in local dev, it disables standard SSL/TLS certificate verification in production.
-  2. Modern enterprise mail relays and strict **MTA-STS (RFC 8461)** / **DANE (RFC 7672)** security policies flag connections that bypass certificate validation.
-  3. If MITM attacks or unvalidated certs are detected in outbound hops, delivery reputation is severely degraded.
-- **Exact Scope Lock (Phase 7):**
-  - **Allowed Scope:**
-    - Set `rejectUnauthorized: true` by default for all standard production SMTP ports (465, 587).
-    - Allow `rejectUnauthorized: false` only as an explicit, user-toggled option for self-signed development servers.
-  - **Forbidden Scope:** Do not break existing working SMTP credentials; ensure standard SSL/TLS handshakes succeed.
+- **Technical Root Cause:**
+  When `sendEmailViaResend` encounters an unhandled exception (network drop, DNS failure, 500 HTML response, or client disconnect), the `catch` block merely logs to console. The recipient remains permanently in `'sending'` status. On the next loop, `findIndex(r => r.status === 'pending')` skips this recipient. When all pending recipients finish, the task marks itself `'completed'`, leaving failed recipients orphaned. `retryFailedRecipients` only looks for `'failed'`, so stuck recipients can never be retried.
+  Additionally, updating `recs[nextRecipientIndex]` after an asynchronous `await` (1–3 seconds) introduces race conditions if the recipient list was mutated during flight.
+- **Remediation Strategy (Phase 3):**
+  1. Wrap dispatch execution in a resilient state-machine handler: on any caught exception, immediately mark the recipient as `'failed'` with the exact error message.
+  2. Lookup recipients by immutable identifier/email (`recs.findIndex(r => r.email === recipient.email)`) instead of stale closure index.
+  3. Allow `retryFailedRecipients` to reset both `'failed'` and orphaned `'sending'` records.
+- **Scope Lock:** `src/context/AppContext.tsx`.
 
 ---
 
-## 3. Scope Lock Summary Table
+### 🔴 Vulnerability 04: Silent Attachment Loss via Unhandled Client-Side S3 CORS Fetching
+- **Files Affected:**
+  - `src/context/AppContext.tsx` (Lines 822–844)
+  - `src/components/pages/ContentPage.tsx` (Lines 286–305)
+  - `server.ts` (Line 2694)
+  - `server/providers/smtp.ts` (Lines 123–129)
+- **Code Proof:**
+  ```typescript
+  // src/context/AppContext.tsx (Lines 822–844)
+  if (att.url) {
+    try {
+      const response = await fetch(att.url); // Cross-origin fetch to Supabase S3
+      if (response.ok) {
+        ...
+        validTaskAttachments.push(item);
+      }
+    } catch (err) {
+      console.warn('[AppContext] Failed to read attachment from S3 URL:', err);
+    }
+  }
+  // If S3 bucket lacks CORS for the current domain, fetch throws TypeError and attachment is dropped!
+  ```
+- **Technical Root Cause:**
+  `ContentPage.tsx` stores only the S3 URL in template state. When `AppContext.tsx` runs in the browser, `fetch(att.url)` initiates a client-side cross-origin request. If CORS headers (`Access-Control-Allow-Origin`) are missing on the bucket, the browser blocks the fetch. The error is silently swallowed, and the email is dispatched with zero attachments without warning the user.
+  Additionally, if base64 data includes a `data:*/*;base64,` prefix, passing it to `Buffer.from(content, 'base64')` in `server/providers/smtp.ts` corrupts the binary header.
+- **Remediation Strategy (Phase 4):**
+  1. Introduce a server-side attachment proxy endpoint (`GET /api/storage/attachment/:id` or fallback buffer streaming) to eliminate browser CORS restrictions.
+  2. Sanitize all base64 attachment strings by stripping any leading `data:*;base64,` prefixes before passing to Resend and Nodemailer.
+  3. If an attachment fails to load, notify the user in task logs rather than silently omitting it.
+- **Scope Lock:** `src/context/AppContext.tsx`, `server.ts`, `server/providers/smtp.ts`, `server/providers/resend.ts`.
 
-| Phase | Bug Reference | Target Component | Exact Scope Lock (What to Touch) | Strictly Locked Out (What NOT to Touch) |
-| :---: | :--- | :--- | :--- | :--- |
-| **Phase 1** | Bug 01: Fake Unsubscribe URL | `antiSpamHeaders.ts`, `[[catchall]].ts` | Unsubscribe header generator only. Never emit fake URLs; prioritize genuine HTTPS. | UI styles, task runner, body content. |
-| **Phase 2** | Bug 02: Hardcoded "Sarah" / "R Sender" | `server.ts`, `AppContext.tsx`, `TasksPage.tsx` | Fallback display name & subject resolver. Derive from API name or sender email. | Database schema, task runner mechanics. |
-| **Phase 3** | Bug 03: Synthetic `support@` Reply-To | `antiSpamHeaders.ts`, `[[catchall]].ts` | Reply-To resolver. Default to actual sender email; preserve external emails. | From header, To header, body text. |
-| **Phase 4** | Bug 04: Custom SMTP Message-ID | `server/providers/smtp.ts` | Generate RFC 5322 Message-ID with sender's verified domain. | SMTP authentication, socket pooling. |
-| **Phase 5** | Bug 05: Short/Zero Body Text Fallback | `server.ts`, `AppContext.tsx` | Eliminate stub strings; enforce multipart MIME with `htmlToPlainText`. | Rich text editor components, presets. |
-| **Phase 6** | Bug 06: Rapid Velocity & Resend 429 | `AppContext.tsx`, `server.ts` | Resend 429 adaptive retry/backoff & safe default pacing. | Core task queue state, recipient parsing. |
-| **Phase 7** | Bug 07: SMTP TLS `rejectUnauthorized` | `server/providers/smtp.ts` | Strict TLS validation by default with optional dev fallback. | SMTP transport creation, port routing. |
+---
+
+### 🔴 Vulnerability 05: Internal API Key Label Leaks into Email `From` Header as Sender Name
+- **Files Affected:**
+  - `src/context/AppContext.tsx` (Lines 709–721)
+  - `server.ts` (Lines 2540–2552)
+- **Code Proof:**
+  ```typescript
+  // src/context/AppContext.tsx (Lines 709–713)
+  if (!rawSenderName || rawSenderName === 'R Sender' || rawSenderName === 'Sarah from R Sender' || rawSenderName === 'R Sender Support') {
+    const emailForName = (selectedApi.senderEmail || '').trim();
+    if (selectedApi.name && selectedApi.name !== 'Default' && selectedApi.name !== 'R Sender') {
+      rawSenderName = selectedApi.name; // <--- Internal database label becomes From: Name!
+    }
+  ```
+- **Technical Root Cause:**
+  When `rawSenderName` matches default placeholder values, the code replaces it with `selectedApi.name`. If a user names their key `"Resend Production Key 03"` or `"Backup SMTP Relay"`, outgoing emails display:
+  `From: Resend Production Key 03 <notifications@company.com>`.
+  Furthermore, if `cleanName` contains special characters (such as commas, e.g. `"Doe, John"`), it is not enclosed in double quotes as required by RFC 5322 Section 3.4, resulting in header syntax errors on strict MTA relays.
+- **Deliverability & Spam Impact:**
+  Internal infrastructure labels appearing in recipient inboxes alarm users, triggering immediate **"Report Spam"** or **"Phishing"** reports. Unquoted commas cause mail transfer agents to interpret `"Doe"` and `"John <email>"` as two separate entities, corrupting the `From:` header.
+- **Remediation Strategy (Phase 5):**
+  1. Remove automatic override of sender name with raw technical API key labels. Use verified domain name or system company name instead.
+  2. Enforce RFC 5322 quoting for sender display names containing commas or special characters: `"${cleanName}" <${email}>`.
+- **Scope Lock:** `src/context/AppContext.tsx`, `server.ts`, `src/utils/antiSpamHeaders.ts`.
+
+---
+
+## 🎯 Verification Matrix
+
+| Vulnerability | Target Phase | Primary Verification Method | Success Criteria |
+| :--- | :---: | :--- | :--- |
+| **01: Unsubscribe Header Inactivity** | Phase 1 | Header inspection test on blank user config | Default Admin Unsubscribe URL attaches RFC 8058 headers on 100% of emails. |
+| **02: Resend Tracking Phishing Flag** | Phase 2 | Resend payload inspection | `open_tracking: false` & `click_tracking: false` verified; no `resend.com/c/` link rewrites. |
+| **03: Task Runner Exception Freeze** | Phase 3 | Simulated network failure test | Thrown exception marks recipient as `'failed'`; no recipients remain stuck in `'sending'`. |
+| **04: S3 CORS Attachment Drops** | Phase 4 | Cross-origin attachment dispatch test | Attachment arrives intact; base64 headers cleaned; no binary file corruption. |
+| **05: Internal API Key Label Leak** | Phase 5 | `From:` header format test with technical key name | Clean business display name rendered; technical key labels never leak; names with commas quoted. |

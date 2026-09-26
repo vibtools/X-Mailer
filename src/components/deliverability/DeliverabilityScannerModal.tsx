@@ -9,6 +9,7 @@ import {
   Check,
 } from 'lucide-react';
 import { DeliverabilityReport, scanDeliverability } from '../../utils/deliverabilityScanner';
+import { useApp } from '../../context/AppContext';
 
 interface DeliverabilityScannerModalProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ export const DeliverabilityScannerModal: React.FC<DeliverabilityScannerModalProp
   enableOneClickUnsubscribe,
   onInsertTag,
 }) => {
+  const { settings } = useApp();
   const [isScanning, setIsScanning] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [scanProgress, setScanProgress] = useState(0);
@@ -58,9 +60,11 @@ export const DeliverabilityScannerModal: React.FC<DeliverabilityScannerModalProp
       bodyHtml,
       bodyText,
       unsubscribeUrl,
+      defaultUnsubscribeUrl: settings.defaultUnsubscribeUrl,
+      enableGlobalUnsubscribe: settings.enableGlobalUnsubscribe !== false,
       enableOneClickUnsubscribe,
     });
-  }, [subject, bodyHtml, bodyText, unsubscribeUrl, enableOneClickUnsubscribe]);
+  }, [subject, bodyHtml, bodyText, unsubscribeUrl, enableOneClickUnsubscribe, settings.defaultUnsubscribeUrl, settings.enableGlobalUnsubscribe]);
 
   // Trigger scanning sequence when modal opens
   const startRealScan = () => {

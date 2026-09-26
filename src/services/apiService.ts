@@ -62,6 +62,12 @@ export interface SendEmailPayload {
   smtp_user?: string;
   smtpPass?: string;
   smtp_pass?: string;
+
+  // Anti-phishing & Tracking flags
+  trackOpens?: boolean;
+  trackClicks?: boolean;
+  open_tracking?: boolean;
+  click_tracking?: boolean;
 }
 
 export interface SendEmailResult {
@@ -667,6 +673,16 @@ export async function fetchSettingsFromDb(): Promise<SystemSettings> {
     maintenanceMode: false,
     companyName: "Your Company",
     companyAddress: "123 Business Rd, City, Country",
+    defaultUnsubscribeUrl: "https://unsubscribe.sotflo.com/unsubscribe?email={EMAIL}",
+    enableOneClickUnsubscribe: true,
+    enableGlobalUnsubscribe: true,
+    enableResendTracking: false,
+    enableAutoReplyTo: true,
+    defaultSubject: "Update regarding your account {name}",
+    enableDynamicTags: true,
+    enableDeliverabilityScanner: true,
+    enableAttachments: true,
+    enablePlainTextFallback: true,
   };
 
   const result = await safeJsonFetch<SystemSettings>("/api/settings", undefined, "/api/settings");
@@ -989,7 +1005,7 @@ export async function sendEmailViaResend(
   payload: SendEmailPayload
 ): Promise<SendEmailResult> {
   const result = await safeJsonFetch<SendEmailResult>(
-    "/api/resend/send",
+    "/api/send",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1001,12 +1017,14 @@ export async function sendEmailViaResend(
   if (!result.ok) {
     return {
       success: false,
-      error: result.error || "Failed sending email via Resend",
+      error: result.error || "Failed sending email via provider",
     };
   }
 
   return result.data || { success: false, error: "Empty dispatch response" };
 }
+
+export const sendEmailUnified = sendEmailViaResend;
 
 // -------------------------------------------------------------
 // SUPABASE S3 STORAGE SERVICE

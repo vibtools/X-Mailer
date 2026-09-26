@@ -1676,3 +1676,15 @@ eon_domains table schema and /api/domains CRUD endpoints were completely missing
   3. **Duplicate Keys Bug Fix:** Re-mapped and fixed duplicated smtpUser keys resulting from collision during the bulk regex, restoring proper mappings for smtp_user in server.ts, ApisPage.tsx, and AppContext.tsx.
 - **Verification:** Ran 
 px tsc --noEmit and confirmed absolute 0 TypeScript errors and warnings. Project is 100% clean.
+
+### Session 28: Hotfix for neon_users Table Reference Error
+- **Objective:** Resolve the `relation "neonusers" does not exist` error on user and admin login.
+- **Root Cause:** In the previous session, a case-insensitive automated string replacement script intended to remove unused _User imports inadvertently replaced 
+eon_users with 
+eonUsers inside server.ts. PostgreSQL lowercases unquoted identifiers, making it look for 
+eonusers, which didn't match the actual table name 
+eon_users.
+- **Actions Taken:** Searched for and restored all 16 occurrences of 
+eonUsers back to 
+eon_users in server.ts. Committed and pushed the hotfix to the repository.
+- **Verification:** Users and admins can now authenticate normally again as the exact database table reference is restored.

@@ -1,0 +1,6 @@
+{
+  "name": "R Sender",
+  "description": "Resend API bulk email sending automation platform with multi-key round-robin rotation, live progress tracking, and admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,15 @@
+# Cloudflare Pages & Functions Configuration for R Sender
+name = "r-sender"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment Variables & Secret Bindings (Cloudflare Pages)
+# Set secrets via Cloudflare Dashboard -> Workers & Pages -> Settings -> Variables and Secrets
+# Or via CLI: npx wrangler secret put DATABASE_URL
+[vars]
+NODE_ENV = "production"
+
+# Observability and Logs
+[observability]
+enabled = true

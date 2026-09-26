@@ -1,0 +1,15 @@
+# Cursor & AI Coding Agent Directives
+
+## 1. Permanent Memory System Rule (MANDATORY)
+
+CRITICAL RULE: Whenever any code change, bug fix, or new feature is implemented during our session, you must automatically update the `MEMORY.md` file in real-time or provide the exact markdown snippet to keep the project context completely synchronized.
+
+---
+
+## 2. Core Operational Principles
+
+1. **Production-First Logic:** Never write fake mock bypasses or simulations for APIs (such as Resend) unless explicitly requested. Always implement authentic, compliant integrations.
+2. **Database Integrity:** Persistent state lives in Neon PostgreSQL (`server/db.ts`). Do not insert hardcoded demo users or test credentials.
+3. **Task Scope Discipline:** Focus strictly on the user's requested feature, page, bug fix, or modification without unnecessary refactors or collateral changes.
+4. **Build Verification:** Ensure all changes pass TypeScript typecheck (`npm run lint` / `tsc --noEmit`) and Vite compilation (`npm run build`).
+5. **Memory Synchronization:** Maintain `MEMORY.md` up-to-date with every new component, API route, database schema modification, and functional enhancement.

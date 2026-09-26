@@ -1,0 +1,17 @@
+# Global Security Headers
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-XSS-Protection: 1; mode=block
+
+# Static Assets Caching (Immutable Cache for 1 Year)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# API Route Headers
+/api/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With
+  Cache-Control: no-store, no-cache, must-revalidate

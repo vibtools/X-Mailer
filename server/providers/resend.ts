@@ -47,7 +47,7 @@ export async function sendWithResend(
   if (payload.attachments && payload.attachments.length > 0) {
     resendPayload.attachments = payload.attachments.map((att) => ({
       filename: att.filename,
-      content: att.content,
+      content: att.content ? att.content.replace(/^data:.*?;base64,/, '') : undefined,
       path: att.path,
     }));
   }

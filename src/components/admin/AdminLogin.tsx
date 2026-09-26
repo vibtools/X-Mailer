@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, ArrowRight, ShieldAlert, KeyRound, ArrowLeft, RefreshCw, Eye, EyeOff, Wrench } from 'lucide-react';
+import {   ArrowRight, ShieldAlert, KeyRound, ArrowLeft, RefreshCw, Eye, EyeOff, Wrench } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { checkSetupStatus } from '../../services/apiService';
 

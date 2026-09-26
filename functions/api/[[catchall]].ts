@@ -183,7 +183,10 @@ function sanitizeReplyTo(rawReplyTo?: string): string | undefined {
     const displayName = match[1].replace(/[<>"]/g, "").trim();
     const email = match[2].trim().toLowerCase();
     if (isValidEmailAddress(email)) {
-      return displayName ? `${displayName} <${email}>` : email;
+      if (!displayName) return email;
+      const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(displayName);
+      const formattedName = needsQuoting ? `"${displayName}"` : displayName;
+      return `${formattedName} <${email}>`;
     }
     return undefined;
   }
@@ -239,7 +242,10 @@ function resolveAutoReplyTo(
   }
 
   if (senderBareEmail) {
-    return senderDisplayName ? `${senderDisplayName} <${senderBareEmail}>` : senderBareEmail;
+    if (!senderDisplayName) return senderBareEmail;
+    const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(senderDisplayName);
+    const formattedName = needsQuoting ? `"${senderDisplayName}"` : senderDisplayName;
+    return `${formattedName} <${senderBareEmail}>`;
   }
 
   // Under NO circumstance synthesize non-existent support@ mailboxes that fail MX probes
@@ -252,6 +258,8 @@ function generateAntiSpamHeaders(options: {
   replyTo?: string;
   autoReplyTo?: boolean;
   unsubscribeUrl?: string;
+  defaultUnsubscribeUrl?: string;
+  enableGlobalUnsubscribe?: boolean;
   unsubscribeMailto?: string;
   enableOneClickUnsubscribe?: boolean;
   customHeaders?: Record<string, string>;
@@ -263,6 +271,8 @@ function generateAntiSpamHeaders(options: {
     replyTo,
     autoReplyTo = false,
     unsubscribeUrl,
+    defaultUnsubscribeUrl,
+    enableGlobalUnsubscribe = true,
     unsubscribeMailto,
     enableOneClickUnsubscribe = true,
     customHeaders = {},
@@ -289,7 +299,10 @@ function generateAntiSpamHeaders(options: {
     const encodedRecipient = encodeURIComponent(cleanRecipient);
 
     let finalUnsubUrl = "";
-    const cleanCustomUrl = unsubscribeUrl ? sanitizeHeaderValue(unsubscribeUrl).trim() : "";
+    let cleanCustomUrl = unsubscribeUrl ? sanitizeHeaderValue(unsubscribeUrl).trim() : "";
+    if (!cleanCustomUrl && enableGlobalUnsubscribe && defaultUnsubscribeUrl) {
+      cleanCustomUrl = sanitizeHeaderValue(defaultUnsubscribeUrl).trim();
+    }
 
     if (cleanCustomUrl) {
       if (cleanCustomUrl.toLowerCase().startsWith("mailto:")) {
@@ -633,6 +646,17 @@ const DDL_STATEMENTS = [
   `ALTER TABLE neon_content ADD COLUMN IF NOT EXISTS unsubscribe_url TEXT;`,
   `ALTER TABLE neon_content ADD COLUMN IF NOT EXISTS enable_one_click_unsubscribe BOOLEAN DEFAULT TRUE;`,
   `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS reply_to TEXT;`,
+  `CREATE TABLE IF NOT EXISTS neon_domains (
+    id VARCHAR(100) PRIMARY KEY,
+    domain VARCHAR(255) UNIQUE NOT NULL,
+    source VARCHAR(50) DEFAULT 'auto',
+    domain_type VARCHAR(50) DEFAULT 'custom',
+    status VARCHAR(50) DEFAULT 'active',
+    is_verified BOOLEAN DEFAULT TRUE,
+    request_count INT DEFAULT 0,
+    last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`,
   `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS auto_reply_to BOOLEAN DEFAULT TRUE;`,
   `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS unsubscribe_url TEXT;`,
   `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS enable_one_click_unsubscribe BOOLEAN DEFAULT TRUE;`,
@@ -782,8 +806,9 @@ export async function onRequest(context: EventContext): Promise<Response> {
       if (!target) return errorResponse("Connection string is required", 400);
 
       const start = Date.now();
+      let testPool;
       try {
-        const testPool = new Pool({ connectionString: target });
+        testPool = new Pool({ connectionString: target });
         const res = await testPool.query(
           "SELECT current_database() as db, version() as ver, NOW() as time",
         );
@@ -801,6 +826,10 @@ export async function onRequest(context: EventContext): Promise<Response> {
         });
       } catch (err: any) {
         return errorResponse(err.message || "Connection failed", 400);
+      } finally {
+        if (testPool) {
+          await testPool.end().catch(() => {});
+        }
       }
     }
 
@@ -1766,6 +1795,142 @@ export async function onRequest(context: EventContext): Promise<Response> {
     }
 
     // -------------------------------------------------------------
+    // DOMAINS API
+    // -------------------------------------------------------------
+    if (path === "/api/domains") {
+      if (method === "GET") {
+        const currentHost = (
+          request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+          request.headers.get("host")?.split(":")[0]?.trim() ||
+          "localhost"
+        ).toLowerCase();
+
+        if (currentHost && currentHost !== "localhost" && !currentHost.startsWith("127.")) {
+          const id = `dom_${currentHost.replace(/[^a-z0-9]/gi, "_")}`;
+          const isCf = currentHost.includes("pages.dev");
+          try {
+            await runQuery(
+              env,
+              `INSERT INTO neon_domains (id, domain, source, domain_type, status, is_verified, request_count, last_active_at)
+               VALUES ($1, $2, 'auto', $3, 'active', true, 1, CURRENT_TIMESTAMP)
+               ON CONFLICT (domain) DO UPDATE
+               SET request_count = neon_domains.request_count + 1,
+                   last_active_at = CURRENT_TIMESTAMP`,
+              [id, currentHost, isCf ? "cloudflare_pages" : "custom"]
+            );
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        const rows = await runQuery(
+          env,
+          "SELECT id, domain, source, domain_type, status, is_verified, request_count, last_active_at, created_at FROM neon_domains ORDER BY last_active_at DESC"
+        );
+
+        const formatted = rows.map((r: any) => ({
+          id: r.id,
+          domain: r.domain,
+          source: r.source || "auto",
+          domainType: r.domain_type || "custom",
+          domain_type: r.domain_type || "custom",
+          status: r.status || "active",
+          isVerified: Boolean(r.is_verified),
+          requestCount: Number(r.request_count) || 0,
+          lastActiveAt: r.last_active_at ? new Date(r.last_active_at).toLocaleString() : "",
+          createdAt: r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : "",
+        }));
+
+        return jsonResponse({
+          currentHost,
+          domains: formatted,
+        });
+      }
+
+      if (method === "POST") {
+        const { domain, domainType, status } = body || {};
+        if (!domain || !domain.trim()) {
+          return jsonResponse({ error: "Domain hostname is required." }, 400);
+        }
+
+        const cleanDomain = domain.trim().replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+        const id = `dom_${cleanDomain.replace(/[^a-z0-9]/gi, "_")}`;
+        const type = domainType || (cleanDomain.includes("pages.dev") ? "cloudflare_pages" : "custom");
+
+        const rows = await runQuery(
+          env,
+          `INSERT INTO neon_domains (id, domain, source, domain_type, status, is_verified, request_count, last_active_at)
+           VALUES ($1, $2, 'manual', $3, $4, true, 0, CURRENT_TIMESTAMP)
+           ON CONFLICT (domain) DO UPDATE
+           SET domain_type = EXCLUDED.domain_type,
+               status = EXCLUDED.status,
+               last_active_at = CURRENT_TIMESTAMP
+           RETURNING *`,
+          [id, cleanDomain, type, status || "active"]
+        );
+
+        if (!rows || rows.length === 0) {
+           return jsonResponse({ error: "Failed to create domain." }, 500);
+        }
+
+        const r = rows[0];
+        return jsonResponse({
+          id: r.id,
+          domain: r.domain,
+          source: r.source || "manual",
+          domainType: r.domain_type,
+          domain_type: r.domain_type,
+          status: r.status,
+          isVerified: Boolean(r.is_verified),
+          requestCount: Number(r.request_count) || 0,
+          lastActiveAt: r.last_active_at ? new Date(r.last_active_at).toLocaleString() : "",
+          createdAt: r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : "",
+        });
+      }
+    }
+
+    if (path.startsWith("/api/domains/") && path.split("/").length === 4) {
+      const id = path.split("/")[3];
+      if (method === "PUT") {
+        const { status, domainType, isVerified } = body || {};
+        const rows = await runQuery(
+          env,
+          `UPDATE neon_domains
+           SET status = COALESCE($1, status),
+               domain_type = COALESCE($2, domain_type),
+               is_verified = COALESCE($3, is_verified),
+               last_active_at = CURRENT_TIMESTAMP
+           WHERE id = $4
+           RETURNING *`,
+          [status ?? null, domainType ?? null, isVerified ?? null, id]
+        );
+
+        if (!rows || rows.length === 0) {
+          return jsonResponse({ error: "Domain not found." }, 404);
+        }
+
+        const r = rows[0];
+        return jsonResponse({
+          id: r.id,
+          domain: r.domain,
+          source: r.source,
+          domainType: r.domain_type,
+          domain_type: r.domain_type,
+          status: r.status,
+          isVerified: Boolean(r.is_verified),
+          requestCount: Number(r.request_count) || 0,
+          lastActiveAt: r.last_active_at ? new Date(r.last_active_at).toLocaleString() : "",
+          createdAt: r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : "",
+        });
+      }
+
+      if (method === "DELETE") {
+        await runQuery(env, "DELETE FROM neon_domains WHERE id = $1", [id]);
+        return jsonResponse({ success: true });
+      }
+    }
+
+    // -------------------------------------------------------------
     // SYSTEM SETTINGS (/api/settings)
     // -------------------------------------------------------------
     if (path === "/api/settings") {
@@ -2165,6 +2330,32 @@ export async function onRequest(context: EventContext): Promise<Response> {
         fileId,
       ]);
       return jsonResponse({ success: true });
+    }
+
+    if (path === "/api/storage/proxy" && method === "GET") {
+      const targetUrl = url.searchParams.get("url");
+      if (!targetUrl) return errorResponse("URL is required", 400);
+
+      try {
+        const fetchRes = await fetch(targetUrl);
+        if (!fetchRes.ok) {
+          return errorResponse(`Failed to fetch from S3: ${fetchRes.statusText}`, fetchRes.status);
+        }
+        
+        const arrayBuffer = await fetchRes.arrayBuffer();
+        const contentType = fetchRes.headers.get("content-type") || "application/octet-stream";
+        
+        return new Response(arrayBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=31536000",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (err: any) {
+        return errorResponse(`Proxy fetch failed: ${err.message}`, 500);
+      }
     }
 
     // -------------------------------------------------------------

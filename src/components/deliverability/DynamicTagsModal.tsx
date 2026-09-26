@@ -13,7 +13,7 @@ import {
   Hash,
   FileText,
 } from 'lucide-react';
-import { AVAILABLE_DYNAMIC_TAGS, DynamicTagInfo } from '../../utils/dynamicTags';
+import { AVAILABLE_DYNAMIC_TAGS} from '../../utils/dynamicTags';
 
 interface DynamicTagsModalProps {
   isOpen: boolean;
@@ -221,3 +221,4 @@ export const DynamicTagsModal: React.FC<DynamicTagsModalProps> = ({
     </div>
   );
 };
+

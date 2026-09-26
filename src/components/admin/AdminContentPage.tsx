@@ -12,9 +12,7 @@ import {
   Paperclip,
   CheckCircle2,
   AlertCircle,
-  FolderOpen,
-  Copy,
-  RefreshCw,
+  FolderOpen, Copy, RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -1069,3 +1067,4 @@ export const AdminContentPage: React.FC = () => {
     </div>
   );
 };
+

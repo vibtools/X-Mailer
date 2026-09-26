@@ -10,15 +10,14 @@ import {
   Search,
   Plus,
   BookmarkPlus,
-  FolderOpen,
-  Copy,
+  FolderOpen, Copy,
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { uploadFileToStorage } from '../../services/apiService';
 import { AttachmentItem, EmailPreset } from '../../types';
-import { AVAILABLE_DYNAMIC_TAGS, interpolateEmailPayload } from '../../utils/dynamicTags';
+import {  interpolateEmailPayload } from '../../utils/dynamicTags';
 import { htmlToPlainText } from '../../utils/htmlToPlainText';
 import { DeliverabilityScannerModal } from '../deliverability/DeliverabilityScannerModal';
 import { DynamicTagsModal } from '../deliverability/DynamicTagsModal';
@@ -57,7 +56,7 @@ export const ContentPage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
-  const [copiedTag, setCopiedTag] = useState<string | null>(null);
+  const [_copiedTag, setCopiedTag] = useState<string | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<'html' | 'plain'>('html');
   const [isSavePresetModalOpen, setIsSavePresetModalOpen] = useState(false);
@@ -255,7 +254,7 @@ export const ContentPage: React.FC = () => {
     triggerToast(`Inserted ${tagText} into ${target}`);
   };
 
-  const handleCopyTag = (tagText: string) => {
+  const _handleCopyTag = (tagText: string) => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(tagText).catch(() => {});
     }
@@ -888,3 +887,4 @@ export const ContentPage: React.FC = () => {
     </div>
   );
 };
+

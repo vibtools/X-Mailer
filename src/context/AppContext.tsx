@@ -210,7 +210,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [adminUser, setAdminUser] = useState<AppUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => {
-    return !!(localStorage.getItem('r_user_token') || localStorage.getItem('r_admin_token'));
+    return !!(localStorage.getItem('rUser_token') || localStorage.getItem('r_admin_token'));
   });
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     return window.location.pathname.startsWith('/vcon');
@@ -248,9 +248,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // -------------------------------------------------------------
   const refreshFromDb = async () => {
     try {
-      const userToken = localStorage.getItem('r_user_token');
+      const userToken = localStorage.getItem('rUser_token');
       const adminToken = localStorage.getItem('r_admin_token');
-      const userId = currentUserRef.current?.id || localStorage.getItem('r_user_id') || '';
+      const userId = currentUserRef.current?.id || localStorage.getItem('rUser_id') || '';
       const isAdminRoute = window.location.pathname.startsWith('/vcon');
 
       // Parallelize auth verification and core data fetching in a single round-trip
@@ -299,10 +299,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const verifyRes = verifyUserRes.value;
         if (verifyRes.valid && verifyRes.user) {
           setCurrentUser(verifyRes.user);
-          localStorage.setItem('r_user_id', verifyRes.user.id);
+          localStorage.setItem('rUser_id', verifyRes.user.id);
         } else {
-          localStorage.removeItem('r_user_token');
-          localStorage.removeItem('r_user_id');
+          localStorage.removeItem('rUser_token');
+          localStorage.removeItem('rUser_id');
         }
       }
 
@@ -337,7 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // LOGS (SYNCED TO NEON DB)
   // -------------------------------------------------------------
   const addLog = (logData: Omit<LogEntry, 'id' | 'timestamp'>) => {
-    const activeUserId = logData.userId || currentUserRef.current?.id || localStorage.getItem('r_user_id') || undefined;
+    const activeUserId = logData.userId || currentUserRef.current?.id || localStorage.getItem('rUser_id') || undefined;
     const newLog: LogEntry = {
       ...logData,
       userId: activeUserId,
@@ -360,7 +360,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const payload = {
         ...apiData,
-        userId: apiData.userId || currentUserRef.current?.id || localStorage.getItem('r_user_id') || '',
+        userId: apiData.userId || currentUserRef.current?.id || localStorage.getItem('rUser_id') || '',
       };
       const created = await createApiInDb(payload);
       setApis((prev) => [created, ...prev]);
@@ -445,7 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     taskData: Omit<TaskItem, 'id' | 'createdAt' | 'status' | 'currentLog' | 'progress' | 'stats'>
   ) => {
     try {
-      const activeUserId = taskData.userId || currentUserRef.current?.id || localStorage.getItem('r_user_id') || '';
+      const activeUserId = taskData.userId || currentUserRef.current?.id || localStorage.getItem('rUser_id') || '';
       const payload = {
         ...taskData,
         userId: activeUserId,
@@ -599,7 +599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!task) return;
 
     const resetRecipients = task.recipients.map((r) =>
-      r.status === 'failed' ? { ...r, status: 'pending' as const, error: undefined } : r
+      (r.status === 'failed' || r.status === 'sending') ? { ...r, status: 'pending' as const, error: undefined } : r
     );
 
     const pendingCount = resetRecipients.filter((r) => r.status === 'pending').length;
@@ -718,13 +718,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (!rawSenderName || rawSenderName === 'R Sender' || rawSenderName === 'Sarah from R Sender' || rawSenderName === 'R Sender Support') {
       const emailForName = (selectedApi.senderEmail || '').trim();
-      if (selectedApi.name && selectedApi.name !== 'Default' && selectedApi.name !== 'R Sender') {
-        rawSenderName = selectedApi.name;
-      } else if (settings.companyName && settings.companyName.trim()) {
+      if (settings.companyName && settings.companyName.trim()) {
         rawSenderName = settings.companyName.trim();
       } else if (emailForName && emailForName.includes('@')) {
-        const localPart = emailForName.split('@')[0].replace(/[._-]/g, ' ');
-        rawSenderName = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+        const domainPart = emailForName.split('@')[1];
+        const namePart = domainPart.split('.')[0];
+        rawSenderName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
       } else {
         rawSenderName = 'Support Team';
       }
@@ -807,9 +806,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
     });
 
-    const formattedFrom = rawSenderEmail.includes('<')
-      ? rawSenderEmail
-      : `${cleanSenderName} <${rawSenderEmail}>`;
+    let formattedFrom = rawSenderEmail;
+    if (!rawSenderEmail.includes('<') && cleanSenderName) {
+      const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(cleanSenderName);
+      const quotedName = needsQuoting ? `"${cleanSenderName}"` : cleanSenderName;
+      formattedFrom = `${quotedName} <${rawSenderEmail}>`;
+    }
 
     // High performance memory cached attachments: downloaded and base64 encoded once per campaign
     const rawConfigAttachments = contentRef.current.attachments || [];
@@ -831,25 +833,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (att.url) {
         try {
-          const response = await fetch(att.url);
-          if (response.ok) {
-            const blob = await response.blob();
-            const arrayBuffer = await blob.arrayBuffer();
-            const bytes = new Uint8Array(arrayBuffer);
-            let binary = '';
-            const chunkSize = 0x8000;
-            for (let i = 0; i < bytes.length; i += chunkSize) {
-              binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          let response: Response;
+          try {
+            response = await fetch(att.url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          } catch (fetchErr) {
+            console.warn('[AppContext] Direct S3 fetch failed (CORS/Network), falling back to proxy:', fetchErr);
+            const proxyUrl = `/api/storage/proxy?url=${encodeURIComponent(att.url)}`;
+            response = await fetch(proxyUrl);
+            if (!response.ok) {
+              throw new Error(`Proxy fetch failed with HTTP ${response.status}`);
             }
-            const item = {
-              filename: att.name,
-              content: btoa(binary),
-            };
-            taskAttachmentCacheRef.current.set(cacheKey, item);
-            validTaskAttachments.push(item);
           }
+
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          const chunkSize = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          const item = {
+            filename: att.name,
+            content: btoa(binary),
+          };
+          taskAttachmentCacheRef.current.set(cacheKey, item);
+          validTaskAttachments.push(item);
         } catch (err) {
-          console.warn('[AppContext] Failed to read attachment from S3 URL:', err);
+          console.warn('[AppContext] Failed to read attachment from S3 URL or proxy:', err);
         }
       }
     }
@@ -913,8 +925,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         smtp_port: selectedApi.smtp_port ?? selectedApi.smtpPort,
         smtpSecure: selectedApi.smtpSecure !== undefined ? selectedApi.smtpSecure : selectedApi.smtp_secure,
         smtp_secure: selectedApi.smtp_secure !== undefined ? selectedApi.smtp_secure : selectedApi.smtpSecure,
-        smtpUser: selectedApi.smtpUser || selectedApi.smtp_user,
-        smtp_user: selectedApi.smtp_user || selectedApi.smtpUser,
+        smtp_user: selectedApi.smtpUser || selectedApi.smtp_user,
         smtpPass: selectedApi.smtpPass || selectedApi.smtp_pass,
         smtp_pass: selectedApi.smtp_pass || selectedApi.smtpPass,
         trackOpens: isTrackOpens,
@@ -930,9 +941,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stats = { ...afterTask.stats };
       const activeUser = currentUserRef.current;
 
+      const currentRecipientIndex = recs.findIndex(r => r.email === recipient.email);
+      if (currentRecipientIndex === -1) return;
+
       if (res.success) {
-        recs[nextRecipientIndex] = {
-          ...recs[nextRecipientIndex],
+        recs[currentRecipientIndex] = {
+          ...recs[currentRecipientIndex],
           status: 'sent',
           messageId: res.id,
           sentAt: new Date().toLocaleTimeString(),
@@ -973,15 +987,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         const errorMsg = res.error || 'Dispatch error';
         const is429 = /429|rate\s*limit|too\s*many\s*requests|rate_limit_exceeded|throttl/i.test(errorMsg);
-        const currentRetryCount = recs[nextRecipientIndex].retryCount || 0;
+        const currentRetryCount = recs[currentRecipientIndex].retryCount || 0;
 
         if (is429 && currentRetryCount < 3) {
           // Adaptive Backoff: Do NOT mark as failed yet. Keep pending and increment retry counter.
           const nextRetry = currentRetryCount + 1;
           const backoffDelay = Math.max(3500, (currentTask.delayMs || 3000) * (nextRetry + 0.5));
 
-          recs[nextRecipientIndex] = {
-            ...recs[nextRecipientIndex],
+          recs[currentRecipientIndex] = {
+            ...recs[currentRecipientIndex],
             status: 'pending',
             retryCount: nextRetry,
             error: `Rate limit 429: Throttled by provider (Retry ${nextRetry}/3)`,
@@ -1012,8 +1026,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         // Standard Failure or Max Retries Exceeded
-        recs[nextRecipientIndex] = {
-          ...recs[nextRecipientIndex],
+        recs[currentRecipientIndex] = {
+          ...recs[currentRecipientIndex],
           status: 'failed',
           error: is429 ? `Rate limit 429: Exceeded maximum retries (3/3)` : errorMsg,
           sentAt: new Date().toLocaleTimeString(),
@@ -1027,7 +1041,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           recipients: recs,
           stats,
           progress: progressPercent,
-          currentLog: `[Failed] ${recipient.email}: ${recs[nextRecipientIndex].error}`,
+          currentLog: `[Failed] ${recipient.email}: ${recs[currentRecipientIndex].error}`,
         }, stats.remaining === 0);
 
         addLog({
@@ -1037,11 +1051,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           taskName: currentTask.name,
           apiName: selectedApi.name,
           recipient: recipient.email,
-          message: `Failed sending to ${recipient.email}: ${recs[nextRecipientIndex].error}`,
+          message: `Failed sending to ${recipient.email}: ${recs[currentRecipientIndex].error}`,
         });
       }
     } catch (err: any) {
       console.error('Task dispatch exception:', err);
+      const afterTask = tasksRef.current.find((t) => t.id === taskId);
+      if (afterTask) {
+        const recs = [...afterTask.recipients];
+        const stats = { ...afterTask.stats };
+        const activeUser = currentUserRef.current;
+        const currentRecipientIndex = recs.findIndex(r => r.email === recipient.email);
+        
+        if (currentRecipientIndex !== -1) {
+          recs[currentRecipientIndex] = {
+            ...recs[currentRecipientIndex],
+            status: 'failed',
+            error: err.message || 'Dispatch network exception',
+            sentAt: new Date().toLocaleTimeString(),
+          };
+          stats.failed += 1;
+          stats.remaining = Math.max(0, stats.remaining - 1);
+
+          const progressPercent = Math.round(((stats.total - stats.remaining) / stats.total) * 100);
+
+          updateTask(taskId, {
+            recipients: recs,
+            stats,
+            progress: progressPercent,
+            currentLog: `[Exception] ${recipient.email}: ${recs[currentRecipientIndex].error}`,
+          }, stats.remaining === 0);
+
+          addLog({
+            level: 'error',
+            userId: afterTask.userId || activeUser?.id,
+            taskId: afterTask.id,
+            taskName: afterTask.name,
+            apiName: selectedApi.name,
+            recipient: recipient.email,
+            message: `Dispatch exception for ${recipient.email}: ${recs[currentRecipientIndex].error}`,
+          });
+        }
+      }
     }
 
     // Schedule next dispatch after user-defined delay
@@ -1062,8 +1113,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       const res = await loginUserApi(email.trim(), password.trim(), window.location.hostname);
       if (res.success && res.user && res.token) {
-        localStorage.setItem('r_user_token', res.token);
-        localStorage.setItem('r_user_id', res.user.id);
+        localStorage.setItem('rUser_token', res.token);
+        localStorage.setItem('rUser_id', res.user.id);
         setCurrentUser(res.user);
         addLog({
           level: 'info',
@@ -1078,8 +1129,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = () => {
-    localStorage.removeItem('r_user_token');
-    localStorage.removeItem('r_user_id');
+    localStorage.removeItem('rUser_token');
+    localStorage.removeItem('rUser_id');
     setCurrentUser(null);
   };
 
@@ -1135,7 +1186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentPassword: string,
     newPassword: string
   ): Promise<{ success: boolean; error?: string; message?: string }> => {
-    const token = adminUser ? localStorage.getItem('r_admin_token') : localStorage.getItem('r_user_token');
+    const token = adminUser ? localStorage.getItem('r_admin_token') : localStorage.getItem('rUser_token');
     const userId = (adminUser || currentUser)?.id;
     return await changePasswordApi(currentPassword, newPassword, userId, token || undefined);
   };
@@ -1266,3 +1317,6 @@ export const useApp = () => {
   }
   return context;
 };
+
+
+

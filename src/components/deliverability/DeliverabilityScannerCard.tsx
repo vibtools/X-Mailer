@@ -55,7 +55,7 @@ export const DeliverabilityScannerCard: React.FC<DeliverabilityScannerCardProps>
   };
 
   const failedChecks = report.checks.filter((c) => c.status !== 'pass');
-  const passedChecks = report.checks.filter((c) => c.status === 'pass');
+//   const passedChecks = report.checks.filter((c) => c.status === 'pass');
 
   const displayedChecks =
     activeTab === 'issues'
@@ -244,3 +244,4 @@ export const DeliverabilityScannerCard: React.FC<DeliverabilityScannerCardProps>
     </div>
   );
 };
+

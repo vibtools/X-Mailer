@@ -445,8 +445,7 @@ export const ApisPage: React.FC = () => {
         smtp_port: testSendModalApi.smtp_port ?? testSendModalApi.smtpPort,
         smtpSecure: testSendModalApi.smtpSecure !== undefined ? testSendModalApi.smtpSecure : testSendModalApi.smtp_secure,
         smtp_secure: testSendModalApi.smtp_secure !== undefined ? testSendModalApi.smtp_secure : testSendModalApi.smtpSecure,
-        smtpUser: testSendModalApi.smtpUser || testSendModalApi.smtp_user,
-        smtp_user: testSendModalApi.smtp_user || testSendModalApi.smtpUser,
+        smtp_user: testSendModalApi.smtpUser || testSendModalApi.smtp_user,
         smtpPass: testSendModalApi.smtpPass || testSendModalApi.smtp_pass,
         smtp_pass: testSendModalApi.smtp_pass || testSendModalApi.smtpPass,
         html: `
@@ -855,7 +854,7 @@ export const ApisPage: React.FC = () => {
                               setEditSmtpHost(item.smtpHost || item.smtp_host || '');
                               setEditSmtpPort(Number(item.smtpPort || item.smtp_port) || 587);
                               setEditSmtpSecure(item.smtpSecure !== undefined ? Boolean(item.smtpSecure) : Boolean(item.smtp_secure));
-                              setEditSmtpUser(item.smtpUser || item.smtp_user || '');
+                              setEditSmtpUser(item.smtpUser || item.smtpUser || '');
                               setEditSmtpPass(item.smtpPass || item.smtp_pass || '');
                               setEditTestResult(null);
                             }}
@@ -1812,3 +1811,6 @@ export const ApisPage: React.FC = () => {
     </div>
   );
 };
+
+
+

@@ -23,7 +23,7 @@ export const LiveLogsPage: React.FC = () => {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Active current user identifier
-  const currentUserId = currentUser?.id || localStorage.getItem('r_user_id') || '';
+  const currentUserId = currentUser?.id || localStorage.getItem('rUser_id') || '';
 
   // Filter tasks that belong strictly to the current user's personal scope
   const personalTasks = useMemo(() => {
@@ -372,3 +372,4 @@ export const LiveLogsPage: React.FC = () => {
     </div>
   );
 };
+

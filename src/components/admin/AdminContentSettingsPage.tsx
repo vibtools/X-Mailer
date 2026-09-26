@@ -132,9 +132,6 @@ export const AdminContentSettingsPage: React.FC = () => {
             </span>
             <h1 className="text-xl font-bold text-white tracking-tight">Content & Deliverability Settings</h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Manage system-wide defaults for email templates, RFC 8058 unsubscribe engine, and master feature toggles.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -180,9 +177,6 @@ export const AdminContentSettingsPage: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-white">Global Unsubscribe Engine & RFC 8058 Compliance</h2>
-              <p className="text-xs text-slate-400">
-                Guarantees all outgoing emails satisfy Google & Yahoo 2024+ Bulk Sender Mandates with List-Unsubscribe headers.
-              </p>
             </div>
           </div>
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
@@ -192,12 +186,9 @@ export const AdminContentSettingsPage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           {/* Master Global Unsubscribe Toggle */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-3">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-3">
               <span className="text-xs font-semibold text-slate-200">Enforce Global Unsubscribe Fallback</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                When active, if a user template does not define an unsubscribe link, the system automatically injects the Admin Default Unsubscribe URL.
-              </p>
             </div>
             <button
               type="button"
@@ -215,12 +206,9 @@ export const AdminContentSettingsPage: React.FC = () => {
           </div>
 
           {/* RFC 8058 One-Click Header Toggle */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-3">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-3">
               <span className="text-xs font-semibold text-slate-200">RFC 8058 One-Click Unsubscribe Header</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Attaches <code className="text-amber-400 text-[10px]">List-Unsubscribe-Post: List-Unsubscribe=One-Click</code> for native inbox 1-click button in Gmail and Yahoo Mail.
-              </p>
             </div>
             <button
               type="button"
@@ -253,9 +241,6 @@ export const AdminContentSettingsPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
             />
           </div>
-          <p className="text-[11px] text-slate-400">
-            This URL is injected into outgoing email headers when user-level unsubscribe URL is not configured.
-          </p>
         </div>
 
         {/* Live Header Inspection Card */}
@@ -294,9 +279,6 @@ export const AdminContentSettingsPage: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-white">Tracking & Anti-Phishing Safeguards</h2>
-              <p className="text-xs text-slate-400">
-                Eliminate link redirection flags and anti-phishing penalties caused by Resend tracking domains.
-              </p>
             </div>
           </div>
           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">
@@ -304,26 +286,11 @@ export const AdminContentSettingsPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-3.5 rounded-lg bg-amber-950/20 border border-amber-500/30 flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-200/90 leading-relaxed">
-            <span className="font-semibold text-amber-300">Why Resend Tracking causes spam: </span>
-            When Resend click tracking is enabled, clean hyperlinks are rewritten to <code className="bg-amber-950/60 px-1 py-0.5 rounded text-amber-300">resend.com/c/...</code> redirects. SpamAssassin and Microsoft SmartScreen flag mismatched link text as phishing. Keeping tracking <span className="font-bold underline">OFF</span> ensures pure inbox delivery.
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Master Resend Tracking Toggle */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-3">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-3">
               <span className="text-xs font-semibold text-slate-200">Resend Open & Click Tracking</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                {formData.enableResendTracking ? (
-                  <span className="text-rose-400 font-medium">Tracking is ENABLED (May trigger phishing flags).</span>
-                ) : (
-                  <span className="text-emerald-400 font-medium">Tracking is DISABLED (Safe: Zero link rewriting).</span>
-                )}
-              </p>
             </div>
             <button
               type="button"
@@ -341,12 +308,9 @@ export const AdminContentSettingsPage: React.FC = () => {
           </div>
 
           {/* Pre-flight Deliverability Scanner */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-3">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-3">
               <span className="text-xs font-semibold text-slate-200">Pre-flight Deliverability Spam Scanner</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Enables automated pre-flight deliverability analysis on the user Content Page before tasks launch.
-              </p>
             </div>
             <button
               type="button"
@@ -390,14 +354,14 @@ export const AdminContentSettingsPage: React.FC = () => {
               placeholder="Support Team"
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
             />
-            <p className="text-[11px] text-slate-500">
-              Clean RFC 5322 friendly display name used as template default.
-            </p>
           </div>
 
           {/* Default Subject */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-300">Default Subject Line</label>
+            <label className="text-xs font-medium text-slate-300 flex items-center justify-between">
+              <span>Default Subject Line</span>
+              <span className="text-[10px] text-slate-500 font-mono">Variables: &#123;name&#125;</span>
+            </label>
             <input
               type="text"
               value={formData.defaultSubject || ''}
@@ -405,19 +369,13 @@ export const AdminContentSettingsPage: React.FC = () => {
               placeholder="Update regarding your account {name}"
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
             />
-            <p className="text-[11px] text-slate-500">
-              Supports dynamic interpolation tag <code className="text-emerald-400 text-[10px]">&#123;name&#125;</code>.
-            </p>
           </div>
         </div>
 
         {/* Auto Reply-To Routing */}
-        <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-          <div className="space-y-1 pr-3">
+        <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+          <div className="pr-3">
             <span className="text-xs font-semibold text-slate-200">Auto Reply-To Header Alignment</span>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              When user has not specified a custom Reply-To inbox, auto-align the Reply-To header with the active sender domain to guarantee zero bounce on customer replies.
-            </p>
           </div>
           <button
             type="button"
@@ -443,20 +401,14 @@ export const AdminContentSettingsPage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-white">Content Formatting & MIME Features</h2>
-            <p className="text-xs text-slate-400">
-              Control the availability of advanced content features on the User Content Page.
-            </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Dynamic Tags */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-2">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-2">
               <span className="text-xs font-semibold text-slate-200">Dynamic Tags Engine</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Allow &#123;name&#125;, &#123;company&#125;, &#123;random_id&#125; dynamic interpolation.
-              </p>
             </div>
             <button
               type="button"
@@ -474,12 +426,9 @@ export const AdminContentSettingsPage: React.FC = () => {
           </div>
 
           {/* Plain Text Fallback */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-2">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-2">
               <span className="text-xs font-semibold text-slate-200">Plain-Text MIME Fallback</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Guarantee multipart/alternative dual MIME on all HTML emails.
-              </p>
             </div>
             <button
               type="button"
@@ -497,12 +446,9 @@ export const AdminContentSettingsPage: React.FC = () => {
           </div>
 
           {/* Attachments Support */}
-          <div className="flex items-start justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
-            <div className="space-y-1 pr-2">
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-950/60 border border-slate-800">
+            <div className="pr-2">
               <span className="text-xs font-semibold text-slate-200">S3 File Attachments</span>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Enable attachment uploading and base64 transmission.
-              </p>
             </div>
             <button
               type="button"
@@ -547,3 +493,4 @@ export const AdminContentSettingsPage: React.FC = () => {
     </div>
   );
 };
+

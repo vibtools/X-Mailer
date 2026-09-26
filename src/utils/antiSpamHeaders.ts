@@ -87,13 +87,15 @@ export function sanitizeReplyTo(rawReplyTo?: string): string | undefined {
   const sanitized = sanitizeHeaderValue(rawReplyTo).trim();
   if (!sanitized) return undefined;
 
-  // Check if formatted with display name: "Display Name <email@example.com>"
   const match = sanitized.match(/^(.*?)\s*<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>$/);
   if (match) {
     const displayName = match[1].replace(/[<>"]/g, '').trim();
     const email = match[2].trim().toLowerCase();
     if (isValidEmailAddress(email)) {
-      return displayName ? `${displayName} <${email}>` : email;
+      if (!displayName) return email;
+      const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(displayName);
+      const formattedName = needsQuoting ? `"${displayName}"` : displayName;
+      return `${formattedName} <${email}>`;
     }
     return undefined;
   }
@@ -163,7 +165,10 @@ export function resolveAutoReplyTo(
   }
 
   if (senderBareEmail) {
-    return senderDisplayName ? `${senderDisplayName} <${senderBareEmail}>` : senderBareEmail;
+    if (!senderDisplayName) return senderBareEmail;
+    const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(senderDisplayName);
+    const formattedName = needsQuoting ? `"${senderDisplayName}"` : senderDisplayName;
+    return `${formattedName} <${senderBareEmail}>`;
   }
 
   // Under NO circumstance synthesize non-existent support@ mailboxes that fail MX probes
@@ -306,3 +311,4 @@ export function generateAntiSpamHeaders(options: AntiSpamHeaderOptions): AntiSpa
     headers: resultHeaders,
   };
 }
+

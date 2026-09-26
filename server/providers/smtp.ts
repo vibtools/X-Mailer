@@ -122,7 +122,7 @@ export async function sendWithSmtp(
     if (payload.attachments && payload.attachments.length > 0) {
       mailOptions.attachments = payload.attachments.map((att) => ({
         filename: att.filename,
-        content: att.content ? Buffer.from(att.content, "base64") : undefined,
+        content: att.content ? Buffer.from(att.content.replace(/^data:.*?;base64,/, ''), "base64") : undefined,
         path: att.path || undefined,
         contentType: att.contentType,
       }));

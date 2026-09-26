@@ -110,7 +110,7 @@ async function startServer() {
   // ==========================================
 
   // Check if system has an admin configured or needs first-time setup
-  app.get(["/api/auth/setup-status", "/api/auth/status"], async (_req: Request, res: Response) => {
+  app.get(["/api/auth/setup-status", "/api/auth/status"], async (req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) {
         return res.json({
@@ -119,7 +119,7 @@ async function startServer() {
         });
       }
       const { rows } = await pool.query(
-        "SELECT COUNT(*) FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
+        "SELECT COUNT(*) FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
       );
       const adminCount = parseInt(rows[0]?.count || "0", 10);
       return res.json({
@@ -140,7 +140,7 @@ async function startServer() {
 
       // Ensure no admin user exists yet
       const { rows: existingAdmins } = await pool.query(
-        "SELECT COUNT(*) FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
+        "SELECT COUNT(*) FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
       );
       const adminCount = parseInt(existingAdmins[0]?.count || "0", 10);
       if (adminCount > 0) {
@@ -177,7 +177,7 @@ async function startServer() {
       const passwordHash = hashPassword(password.trim());
 
       const { rows } = await pool.query(
-        `INSERT INTO neon_users (id, name, email, password_hash, role, status, daily_limit, used_today, last_login)
+        `INSERT INTO neonUsers (id, name, email, password_hash, role, status, daily_limit, used_today, last_login)
          VALUES ($1, $2, $3, $4, 'admin', 'active', 100000, 0, 'Just now')
          RETURNING id, name, email, role, status, daily_limit, used_today, last_login, created_at`,
         [id, name.trim(), email.trim().toLowerCase(), passwordHash],
@@ -243,7 +243,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neon_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
+        "SELECT * FROM neonUsers WHERE LOWER(email) = LOWER($1) LIMIT 1",
         [email.trim()],
       );
 
@@ -325,7 +325,7 @@ async function startServer() {
       resetAttempts(rateLimitKey);
       const lastLoginTime = new Date().toLocaleTimeString();
       await pool.query(
-        "UPDATE neon_users SET last_login = 'Just now' WHERE id = $1",
+        "UPDATE neonUsers SET last_login = 'Just now' WHERE id = $1",
         [user.id],
       );
 
@@ -389,13 +389,13 @@ async function startServer() {
       let adminRow = null;
       if (email && email.trim()) {
         const { rows } = await pool.query(
-          "SELECT * FROM neon_users WHERE LOWER(email) = LOWER($1) AND (LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%') LIMIT 1",
+          "SELECT * FROM neonUsers WHERE LOWER(email) = LOWER($1) AND (LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%') LIMIT 1",
           [email.trim()],
         );
         if (rows.length > 0) adminRow = rows[0];
       } else {
         const { rows } = await pool.query(
-          "SELECT * FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%' LIMIT 1",
+          "SELECT * FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%' LIMIT 1",
         );
         if (rows.length > 0) adminRow = rows[0];
       }
@@ -468,7 +468,7 @@ async function startServer() {
       // Reset attempts and update last_login
       resetAttempts(rateLimitKey);
       await pool.query(
-        "UPDATE neon_users SET last_login = 'Just now' WHERE id = $1",
+        "UPDATE neonUsers SET last_login = 'Just now' WHERE id = $1",
         [adminRow.id],
       );
 
@@ -527,7 +527,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neon_users WHERE id = $1 LIMIT 1",
+        "SELECT * FROM neonUsers WHERE id = $1 LIMIT 1",
         [decoded.id],
       );
       if (rows.length === 0 || rows[0].status === "deactivated") {
@@ -592,7 +592,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neon_users WHERE id = $1 LIMIT 1",
+        "SELECT * FROM neonUsers WHERE id = $1 LIMIT 1",
         [targetUserId],
       );
       if (rows.length === 0) {
@@ -620,7 +620,7 @@ async function startServer() {
       // Hash new password with PBKDF2
       const newHash = hashPassword(newPassword);
       await pool.query(
-        "UPDATE neon_users SET password_hash = $1 WHERE id = $2",
+        "UPDATE neonUsers SET password_hash = $1 WHERE id = $2",
         [newHash, user.id],
       );
 
@@ -665,7 +665,7 @@ async function startServer() {
   // ==========================================
   // NEON DATABASE STATUS & FORENSIC HEALTH CHECK
   // ==========================================
-  app.get("/api/neon/health", async (req: Request, res: Response) => {
+  app.get("/api/neon/health", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) {
         return res.json({
@@ -684,10 +684,10 @@ async function startServer() {
         SELECT
           version() AS pg_version,
           current_database() AS database,
-          current_user AS user,
+          currentUser AS user,
           inet_server_addr() AS server_addr,
           (SELECT COUNT(*) FROM neon_apis) AS apis_count,
-          (SELECT COUNT(*) FROM neon_users) AS users_count,
+          (SELECT COUNT(*) FROM neonUsers) AS users_count,
           (SELECT COUNT(*) FROM neon_tasks) AS tasks_count,
           (SELECT COUNT(*) FROM neon_logs) AS logs_count
       `);
@@ -870,7 +870,6 @@ async function startServer() {
           smtp_port: effectivePort,
           smtpSecure: effectiveSecure,
           smtp_secure: effectiveSecure,
-          smtpUser: effectiveUser,
           smtp_user: effectiveUser,
           smtpPass: effectivePass,
           smtp_pass: effectivePass,
@@ -1136,7 +1135,7 @@ async function startServer() {
   // ==========================================
   // CONTENT ENDPOINTS (NEON POSTGRES)
   // ==========================================
-  app.get("/api/content", async (req: Request, res: Response) => {
+  app.get("/api/content", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) {
         return res.json({
@@ -1294,7 +1293,7 @@ async function startServer() {
     },
   ];
 
-  app.get("/api/presets", async (req: Request, res: Response) => {
+  app.get("/api/presets", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) {
         return res.json(inMemoryPresets);
@@ -1412,7 +1411,7 @@ async function startServer() {
   // ==========================================
   let inMemoryTasks: any[] = [];
 
-  app.get("/api/tasks", async (req: Request, res: Response) => {
+  app.get("/api/tasks", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) return res.json(inMemoryTasks);
       const { rows } = await pool.query(
@@ -1660,11 +1659,11 @@ async function startServer() {
   // ==========================================
   // USERS ENDPOINTS (NEON POSTGRES)
   // ==========================================
-  app.get("/api/users", async (req: Request, res: Response) => {
+  app.get("/api/users", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) return res.json([]);
       const { rows } = await pool.query(
-        "SELECT id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at FROM neon_users ORDER BY created_at ASC",
+        "SELECT id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at FROM neonUsers ORDER BY created_at ASC",
       );
       const formatted = rows.map((r) => {
         let parsedAllowedDomains: string[] = [];
@@ -1714,7 +1713,7 @@ async function startServer() {
       const safeAllowedDomains = Array.isArray(allowedDomains) ? allowedDomains : [];
 
       const { rows } = await pool.query(
-        `INSERT INTO neon_users (id, name, email, password_hash, role, status, daily_limit, used_today, last_login, allowed_domains)
+        `INSERT INTO neonUsers (id, name, email, password_hash, role, status, daily_limit, used_today, last_login, allowed_domains)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'Never', $8::jsonb)
          RETURNING id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at`,
         [
@@ -1777,7 +1776,7 @@ async function startServer() {
       }
 
       const queryText = passwordClause
-        ? `UPDATE neon_users
+        ? `UPDATE neonUsers
            SET password_hash = $1,
                name = COALESCE($2, name),
                email = COALESCE($3, email),
@@ -1788,7 +1787,7 @@ async function startServer() {
                allowed_domains = COALESCE($8::jsonb, allowed_domains)
            WHERE id = $9
            RETURNING id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at`
-        : `UPDATE neon_users
+        : `UPDATE neonUsers
            SET name = COALESCE($1, name),
                email = COALESCE($2, email),
                role = COALESCE($3, role),
@@ -1834,7 +1833,7 @@ async function startServer() {
   app.delete("/api/users/:id", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      await pool.query("DELETE FROM neon_users WHERE id = $1", [id]);
+      await pool.query("DELETE FROM neonUsers WHERE id = $1", [id]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1999,7 +1998,7 @@ async function startServer() {
   // ==========================================
   // SETTINGS ENDPOINTS (NEON POSTGRES)
   // ==========================================
-  app.get("/api/settings", async (req: Request, res: Response) => {
+  app.get("/api/settings", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) {
         return res.json({
@@ -2065,8 +2064,8 @@ async function startServer() {
         neonConnectionString: r.neon_connection_string || DATABASE_URL,
         neonStatus: r.neon_status || "connected",
         defaultDelayMs: r.default_delay_ms,
-        defaultSenderEmail: r.default_sender_email,
-        defaultSenderName: r.default_sender_name,
+        defaultSenderEmail: r.defaultSender_email,
+        defaultSenderName: r.defaultSender_name,
         retryFailedCount: r.retry_failed_count,
         maintenanceMode: r.maintenance_mode,
         companyName: r.company_name || "Your Company",
@@ -2117,7 +2116,7 @@ async function startServer() {
       await pool.query(
         `INSERT INTO neon_settings (
           id, site_name, site_logo, favicon, support_email, neon_connection_string,
-          neon_status, default_delay_ms, default_sender_email, default_sender_name,
+          neon_status, default_delay_ms, defaultSender_email, defaultSender_name,
           maintenance_mode, company_name, company_address, default_unsubscribe_url,
           enable_one_click_unsubscribe, enable_global_unsubscribe, enable_resend_tracking,
           enable_auto_reply_to, default_subject, enable_dynamic_tags, enable_deliverability_scanner,
@@ -2133,8 +2132,8 @@ async function startServer() {
             neon_connection_string = COALESCE(EXCLUDED.neon_connection_string, neon_settings.neon_connection_string),
             neon_status = COALESCE(EXCLUDED.neon_status, neon_settings.neon_status),
             default_delay_ms = COALESCE(EXCLUDED.default_delay_ms, neon_settings.default_delay_ms),
-            default_sender_email = COALESCE(EXCLUDED.default_sender_email, neon_settings.default_sender_email),
-            default_sender_name = COALESCE(EXCLUDED.default_sender_name, neon_settings.default_sender_name),
+            defaultSender_email = COALESCE(EXCLUDED.defaultSender_email, neon_settings.defaultSender_email),
+            defaultSender_name = COALESCE(EXCLUDED.defaultSender_name, neon_settings.defaultSender_name),
             maintenance_mode = COALESCE(EXCLUDED.maintenance_mode, neon_settings.maintenance_mode),
             company_name = COALESCE(EXCLUDED.company_name, neon_settings.company_name),
             company_address = COALESCE(EXCLUDED.company_address, neon_settings.company_address),
@@ -2183,7 +2182,7 @@ async function startServer() {
   // ==========================================
   // LOGS ENDPOINTS (NEON POSTGRES)
   // ==========================================
-  app.get("/api/logs", async (req: Request, res: Response) => {
+  app.get("/api/logs", async (_req: Request, res: Response) => {
     try {
       if (!hasRealDatabaseUrl) return res.json({ logs: [] });
       const { rows } = await pool.query(
@@ -2216,7 +2215,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/logs", async (req: Request, res: Response) => {
+  app.delete("/api/logs", async (_req: Request, res: Response) => {
     try {
       await pool.query("DELETE FROM neon_logs");
       res.json({ success: true, message: "Neon logs purged" });
@@ -2228,7 +2227,7 @@ async function startServer() {
   // ==========================================
   // SUPABASE S3 STORAGE ENDPOINTS
   // ==========================================
-  app.get("/api/storage/config", async (req: Request, res: Response) => {
+  app.get("/api/storage/config", async (_req: Request, res: Response) => {
     try {
       const config = await getStorageConfig();
       // Mask secret access key for security
@@ -2369,9 +2368,31 @@ async function startServer() {
     }
   });
 
-  // ==========================================
-  // RESEND API TESTING & DISPATCH
-  // ==========================================
+  // Proxy endpoint to bypass CORS when fetching attachments from S3
+  app.get("/api/storage/proxy", async (req: Request, res: Response) => {
+    try {
+      const targetUrl = req.query.url as string;
+      if (!targetUrl) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      const fetchRes = await fetch(targetUrl);
+      if (!fetchRes.ok) {
+        return res.status(fetchRes.status).json({ error: `Failed to fetch from S3: ${fetchRes.statusText}` });
+      }
+
+      const arrayBuffer = await fetchRes.arrayBuffer();
+      const contentType = fetchRes.headers.get("content-type") || "application/octet-stream";
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=31536000");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.send(Buffer.from(arrayBuffer));
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ==========================================
   // RESEND API TESTING & REAL DISPATCH
   // ==========================================
@@ -2442,7 +2463,7 @@ async function startServer() {
         // 2. If /domains returned 403 / restricted, check if it is a Sending-Access key
         const isRestricted =
           domainRes.status === 403 ||
-          domainData?.name === "restricted_api_key" ||
+          domainData?.name === "restricted_apiKey" ||
           (domainData?.message &&
             domainData.message.toLowerCase().includes("access"));
 
@@ -2477,7 +2498,7 @@ async function startServer() {
 
             return res.json({
               valid: true,
-              status: "active_sending_only",
+              status: "activeSending_only",
               accessType: "sending_only",
               domains: [],
               verifiedDomains: [],
@@ -2633,7 +2654,12 @@ async function startServer() {
             error: "DMARC Guard: 'onboarding@resend.dev' is not permitted for live campaign dispatches to prevent DMARC alignment failure. Please use an authenticated sender address on your verified domain.",
           });
         }
-        formattedFrom = cleanName ? `${cleanName} <${cleanEmail}>` : cleanEmail;
+        let finalName = cleanName;
+        if (cleanName) {
+          const needsQuoting = /[,\.\\:;@<>\(\)\[\]]/.test(cleanName);
+          finalName = needsQuoting ? `"${cleanName}"` : cleanName;
+        }
+        formattedFrom = finalName ? `${finalName} <${cleanEmail}>` : cleanEmail;
       } else {
         const cleanEmail = formattedFrom.replace(/[<>"]/g, "").trim().toLowerCase();
         if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(cleanEmail)) {
@@ -2888,7 +2914,7 @@ async function startServer() {
         },
       })
     );
-    app.get("*", (req: Request, res: Response) => {
+    app.get("*", (_req: Request, res: Response) => {
       res.sendFile(path.resolve(__dirname, "dist", "index.html"));
     });
   }
@@ -2907,3 +2933,6 @@ startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
+
+
+

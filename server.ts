@@ -119,7 +119,7 @@ async function startServer() {
         });
       }
       const { rows } = await pool.query(
-        "SELECT COUNT(*) FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
+        "SELECT COUNT(*) FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
       );
       const adminCount = parseInt(rows[0]?.count || "0", 10);
       return res.json({
@@ -140,7 +140,7 @@ async function startServer() {
 
       // Ensure no admin user exists yet
       const { rows: existingAdmins } = await pool.query(
-        "SELECT COUNT(*) FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
+        "SELECT COUNT(*) FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%'",
       );
       const adminCount = parseInt(existingAdmins[0]?.count || "0", 10);
       if (adminCount > 0) {
@@ -177,7 +177,7 @@ async function startServer() {
       const passwordHash = hashPassword(password.trim());
 
       const { rows } = await pool.query(
-        `INSERT INTO neonUsers (id, name, email, password_hash, role, status, daily_limit, used_today, last_login)
+        `INSERT INTO neon_users (id, name, email, password_hash, role, status, daily_limit, used_today, last_login)
          VALUES ($1, $2, $3, $4, 'admin', 'active', 100000, 0, 'Just now')
          RETURNING id, name, email, role, status, daily_limit, used_today, last_login, created_at`,
         [id, name.trim(), email.trim().toLowerCase(), passwordHash],
@@ -243,7 +243,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neonUsers WHERE LOWER(email) = LOWER($1) LIMIT 1",
+        "SELECT * FROM neon_users WHERE LOWER(email) = LOWER($1) LIMIT 1",
         [email.trim()],
       );
 
@@ -325,7 +325,7 @@ async function startServer() {
       resetAttempts(rateLimitKey);
       const lastLoginTime = new Date().toLocaleTimeString();
       await pool.query(
-        "UPDATE neonUsers SET last_login = 'Just now' WHERE id = $1",
+        "UPDATE neon_users SET last_login = 'Just now' WHERE id = $1",
         [user.id],
       );
 
@@ -389,13 +389,13 @@ async function startServer() {
       let adminRow = null;
       if (email && email.trim()) {
         const { rows } = await pool.query(
-          "SELECT * FROM neonUsers WHERE LOWER(email) = LOWER($1) AND (LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%') LIMIT 1",
+          "SELECT * FROM neon_users WHERE LOWER(email) = LOWER($1) AND (LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%') LIMIT 1",
           [email.trim()],
         );
         if (rows.length > 0) adminRow = rows[0];
       } else {
         const { rows } = await pool.query(
-          "SELECT * FROM neonUsers WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%' LIMIT 1",
+          "SELECT * FROM neon_users WHERE LOWER(role) = 'admin' OR LOWER(role) = 'super_admin' OR LOWER(role) LIKE '%admin%' LIMIT 1",
         );
         if (rows.length > 0) adminRow = rows[0];
       }
@@ -468,7 +468,7 @@ async function startServer() {
       // Reset attempts and update last_login
       resetAttempts(rateLimitKey);
       await pool.query(
-        "UPDATE neonUsers SET last_login = 'Just now' WHERE id = $1",
+        "UPDATE neon_users SET last_login = 'Just now' WHERE id = $1",
         [adminRow.id],
       );
 
@@ -527,7 +527,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neonUsers WHERE id = $1 LIMIT 1",
+        "SELECT * FROM neon_users WHERE id = $1 LIMIT 1",
         [decoded.id],
       );
       if (rows.length === 0 || rows[0].status === "deactivated") {
@@ -592,7 +592,7 @@ async function startServer() {
       }
 
       const { rows } = await pool.query(
-        "SELECT * FROM neonUsers WHERE id = $1 LIMIT 1",
+        "SELECT * FROM neon_users WHERE id = $1 LIMIT 1",
         [targetUserId],
       );
       if (rows.length === 0) {
@@ -620,7 +620,7 @@ async function startServer() {
       // Hash new password with PBKDF2
       const newHash = hashPassword(newPassword);
       await pool.query(
-        "UPDATE neonUsers SET password_hash = $1 WHERE id = $2",
+        "UPDATE neon_users SET password_hash = $1 WHERE id = $2",
         [newHash, user.id],
       );
 
@@ -687,7 +687,7 @@ async function startServer() {
           currentUser AS user,
           inet_server_addr() AS server_addr,
           (SELECT COUNT(*) FROM neon_apis) AS apis_count,
-          (SELECT COUNT(*) FROM neonUsers) AS users_count,
+          (SELECT COUNT(*) FROM neon_users) AS users_count,
           (SELECT COUNT(*) FROM neon_tasks) AS tasks_count,
           (SELECT COUNT(*) FROM neon_logs) AS logs_count
       `);
@@ -1663,7 +1663,7 @@ async function startServer() {
     try {
       if (!hasRealDatabaseUrl) return res.json([]);
       const { rows } = await pool.query(
-        "SELECT id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at FROM neonUsers ORDER BY created_at ASC",
+        "SELECT id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at FROM neon_users ORDER BY created_at ASC",
       );
       const formatted = rows.map((r) => {
         let parsedAllowedDomains: string[] = [];
@@ -1713,7 +1713,7 @@ async function startServer() {
       const safeAllowedDomains = Array.isArray(allowedDomains) ? allowedDomains : [];
 
       const { rows } = await pool.query(
-        `INSERT INTO neonUsers (id, name, email, password_hash, role, status, daily_limit, used_today, last_login, allowed_domains)
+        `INSERT INTO neon_users (id, name, email, password_hash, role, status, daily_limit, used_today, last_login, allowed_domains)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'Never', $8::jsonb)
          RETURNING id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at`,
         [
@@ -1776,7 +1776,7 @@ async function startServer() {
       }
 
       const queryText = passwordClause
-        ? `UPDATE neonUsers
+        ? `UPDATE neon_users
            SET password_hash = $1,
                name = COALESCE($2, name),
                email = COALESCE($3, email),
@@ -1787,7 +1787,7 @@ async function startServer() {
                allowed_domains = COALESCE($8::jsonb, allowed_domains)
            WHERE id = $9
            RETURNING id, name, email, role, status, daily_limit, used_today, last_login, allowed_domains, created_at`
-        : `UPDATE neonUsers
+        : `UPDATE neon_users
            SET name = COALESCE($1, name),
                email = COALESCE($2, email),
                role = COALESCE($3, role),
@@ -1833,7 +1833,7 @@ async function startServer() {
   app.delete("/api/users/:id", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      await pool.query("DELETE FROM neonUsers WHERE id = $1", [id]);
+      await pool.query("DELETE FROM neon_users WHERE id = $1", [id]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -2933,6 +2933,7 @@ startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
+
 
 
 

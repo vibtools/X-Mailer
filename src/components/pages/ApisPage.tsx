@@ -15,7 +15,7 @@ import { ResendApiKey } from '../../types';
 import { testResendApiKey, sendEmailViaResend, verifySmtpChannelApi } from '../../services/apiService';
 
 export const ApisPage: React.FC = () => {
-  const { currentUser, apis, addApi, updateApi, deleteApi, getLockedApiIds, addLog } = useApp();
+  const { currentUser, apis, addApi, updateApi, deleteApi, getLockedApiIds, addLog, settings } = useApp();
 
   // Connect Modal State
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);

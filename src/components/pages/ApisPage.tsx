@@ -83,7 +83,7 @@ export const ApisPage: React.FC = () => {
   // Live Test Email Modal State
   const [testSendModalApi, setTestSendModalApi] = useState<ResendApiKey | null>(null);
   const [testRecipient, setTestRecipient] = useState(currentUser?.email || 'test@example.com');
-  const [testSubject, setTestSubject] = useState('🧪 Real Delivery Verification from R Sender');
+  const [testSubject, setTestSubject] = useState('');
   const [isSendingLiveTest, setIsSendingLiveTest] = useState(false);
   const [liveTestFeedback, setLiveTestFeedback] = useState<{ success?: boolean; message: string; id?: string } | null>(null);
 
@@ -122,11 +122,11 @@ export const ApisPage: React.FC = () => {
   const activeKeysCount = apis.filter((a) => a.status === 'active' || a.status === 'sending_only').length;
   const totalCapacity = apis.reduce((acc, curr) => acc + (curr.dailyLimit || 1000), 0);
 
-  // Mask Key Helper: re_Ej••••••••6RQt
+  // Mask Key Helper: re_EjÃ¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢6RQt
   const maskApiKey = (key: string) => {
-    if (!key) return 're_••••••••key';
-    if (key.length <= 8) return 're_••••' + key.slice(-3);
-    return key.substring(0, 5) + '••••••••' + key.slice(-4);
+    if (!key) return 're_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢key';
+    if (key.length <= 8) return 're_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢' + key.slice(-3);
+    return key.substring(0, 5) + 'Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢' + key.slice(-4);
   };
 
   const copyToClipboard = (id: string, text: string) => {
@@ -436,7 +436,7 @@ export const ApisPage: React.FC = () => {
         apiId: testSendModalApi.id,
         from: `${testSendModalApi.name} <${testSendModalApi.senderEmail}>`,
         to: testRecipient.trim(),
-        subject: testSubject.trim() || 'Real Email Test from R Sender',
+        subject: testSubject.trim() || `✨ Real Email Test from ${settings.siteName || 'R Sender'}`,
         providerType: isSmtp ? 'smtp' : 'resend',
         provider_type: isSmtp ? 'smtp' : 'resend',
         smtpHost: testSendModalApi.smtpHost || testSendModalApi.smtp_host,
@@ -445,6 +445,7 @@ export const ApisPage: React.FC = () => {
         smtp_port: testSendModalApi.smtp_port ?? testSendModalApi.smtpPort,
         smtpSecure: testSendModalApi.smtpSecure !== undefined ? testSendModalApi.smtpSecure : testSendModalApi.smtp_secure,
         smtp_secure: testSendModalApi.smtp_secure !== undefined ? testSendModalApi.smtp_secure : testSendModalApi.smtpSecure,
+        smtpUser: testSendModalApi.smtpUser || testSendModalApi.smtp_user,
         smtp_user: testSendModalApi.smtpUser || testSendModalApi.smtp_user,
         smtpPass: testSendModalApi.smtpPass || testSendModalApi.smtp_pass,
         smtp_pass: testSendModalApi.smtp_pass || testSendModalApi.smtpPass,
@@ -452,7 +453,7 @@ export const ApisPage: React.FC = () => {
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff; color: #1e293b;">
             <div style="display: flex; align-items: center; margin-bottom: 16px;">
               <span style="font-size: 24px; margin-right: 8px;">🚀</span>
-              <h2 style="margin: 0; color: #0f172a; font-size: 20px;">R Sender Delivery Verification</h2>
+              <h2 style="margin: 0; color: #0f172a; font-size: 20px;">${settings.siteName || 'R Sender'} Delivery Verification</h2>
             </div>
             <p style="font-size: 15px; line-height: 1.6; color: #334155;">
               Congratulations! This email was dispatched in real-time through your configured ${isSmtp ? 'SMTP channel' : 'Resend API key'}:
@@ -468,7 +469,7 @@ export const ApisPage: React.FC = () => {
             </p>
           </div>
         `,
-        text: `R Sender Delivery Verification!\n\nThis email was dispatched in real-time through your configured ${isSmtp ? 'SMTP channel' : 'Resend API key'}: ${testSendModalApi.name} (${testSendModalApi.senderEmail}).\n\nRecipient: ${testRecipient}\nTime: ${new Date().toLocaleString()}`,
+        text: `${settings.siteName || 'R Sender'} Delivery Verification!\n\nThis email was dispatched in real-time through your configured ${isSmtp ? 'SMTP channel' : 'Resend API key'}: ${testSendModalApi.name} (${testSendModalApi.senderEmail}).\n\nRecipient: ${testRecipient}\nTime: ${new Date().toLocaleString()}`,
         apiName: testSendModalApi.name,
       });
 
@@ -556,7 +557,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#94a3b8] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              🔑
+              Ã°Å¸â€â€˜
             </div>
           </div>
 
@@ -571,7 +572,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#10b981] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              ✓
+              Ã¢Å“â€œ
             </div>
           </div>
 
@@ -586,7 +587,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#3b82f6] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              📊
+              Ã°Å¸â€œÅ 
             </div>
           </div>
         </div>
@@ -596,7 +597,7 @@ export const ApisPage: React.FC = () => {
           <div className="flex items-center gap-2 flex-1 min-w-[240px]">
             <div className="relative flex-1 max-w-[280px]">
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-[#94a3b8] pointer-events-none">
-                🔍
+                Ã°Å¸â€Â
               </span>
               <input
                 type="text"
@@ -738,7 +739,7 @@ export const ApisPage: React.FC = () => {
                               title="Copy SMTP host"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">✓</span>
+                                <span className="text-[10px] text-[#10b981] font-semibold">Ã¢Å“â€œ</span>
                               ) : (
                                 <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -757,7 +758,7 @@ export const ApisPage: React.FC = () => {
                               title="Copy API Key"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">✓</span>
+                                <span className="text-[10px] text-[#10b981] font-semibold">Ã¢Å“â€œ</span>
                               ) : (
                                 <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -828,7 +829,7 @@ export const ApisPage: React.FC = () => {
                             className="bg-[#1a2234] border border-[#1e293b] hover:border-[#334155] hover:bg-[#222d42] text-[#10b981] py-[3px] px-[7px] rounded-[4px] text-[10.5px] font-medium cursor-pointer inline-flex items-center gap-1 transition-all"
                             title="Send live test email"
                           >
-                            <span>↗ Test</span>
+                            <span>Ã¢â€ â€” Test</span>
                           </button>
 
                           <button
@@ -899,7 +900,7 @@ export const ApisPage: React.FC = () => {
               disabled={validCurrentPage === 1}
               className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
             >
-              ‹ Prev
+              Ã¢â‚¬Â¹ Prev
             </button>
             <span className="font-mono px-1">
               {validCurrentPage} / {totalPages}
@@ -910,7 +911,7 @@ export const ApisPage: React.FC = () => {
               disabled={validCurrentPage === totalPages || totalPages === 0}
               className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
             >
-              Next ›
+              Next Ã¢â‚¬Âº
             </button>
           </div>
         </div>
@@ -963,7 +964,7 @@ export const ApisPage: React.FC = () => {
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      ▼
+                      Ã¢â€“Â¼
                     </div>
                   </div>
                 </div>
@@ -1011,14 +1012,14 @@ export const ApisPage: React.FC = () => {
                         rel="noreferrer"
                         className="text-[10px] text-[#38bdf8] hover:underline"
                       >
-                        Get Key ↗
+                        Get Key Ã¢â€ â€”
                       </a>
                     </div>
                     <div className="relative flex items-center">
                       <input
                         type={showKeyText ? 'text' : 'password'}
                         required={connectProviderType === 'resend'}
-                        placeholder="re_••••••••••••"
+                        placeholder="re_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
                         value={resendKey}
                         onChange={(e) => {
                           setResendKey(e.target.value);
@@ -1158,7 +1159,7 @@ export const ApisPage: React.FC = () => {
                         <input
                           type={showSmtpPass ? 'text' : 'password'}
                           required={connectProviderType === 'smtp'}
-                          placeholder="••••••••••••"
+                          placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
                           value={smtpPass}
                           onChange={(e) => {
                             setSmtpPass(e.target.value);
@@ -1335,7 +1336,7 @@ export const ApisPage: React.FC = () => {
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      ▼
+                      Ã¢â€“Â¼
                     </div>
                   </div>
                 </div>
@@ -1381,7 +1382,7 @@ export const ApisPage: React.FC = () => {
                         rel="noreferrer"
                         className="text-[10px] text-[#38bdf8] hover:underline"
                       >
-                        Get Key ↗
+                        Get Key Ã¢â€ â€”
                       </a>
                     </div>
                     <div className="relative flex items-center">
@@ -1811,6 +1812,9 @@ export const ApisPage: React.FC = () => {
     </div>
   );
 };
+
+
+
 
 
 

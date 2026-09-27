@@ -20,7 +20,7 @@ import { sendEmailViaResend } from '../../services/apiService';
 export const SettingsPage: React.FC = () => {
   const { currentUser, settings, updateSettings, apis, addLog, changePassword } = useApp();
 
-  const [defaultSenderName, setDefaultSenderName] = useState(settings.defaultSenderName || 'R Sender Dispatcher');
+  const [defaultSenderName, setDefaultSenderName] = useState(settings.defaultSenderName || `${settings.siteName || 'R Sender'} Dispatcher`);
   const [defaultSenderEmail, setDefaultSenderEmail] = useState(settings.defaultSenderEmail || 'sender@yourdomain.com');
   const [defaultDelayMs, setDefaultDelayMs] = useState(settings.defaultDelayMs || 3000);
   const [companyName, setCompanyName] = useState(settings.companyName || 'Your Company');
@@ -84,17 +84,17 @@ export const SettingsPage: React.FC = () => {
         apiKey: chosenApi.key,
         from: `${defaultSenderName} <${chosenApi.senderEmail}>`,
         to: testRecipient.trim(),
-        subject: '🧪 R Sender Live Delivery Diagnostic',
+        subject: `🧪 ${settings.siteName || 'R Sender'} Live Delivery Diagnostic`,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <h2 style="color: #4f46e5;">R Sender Delivery Verified! ✅</h2>
+            <h2 style="color: #4f46e5;">${settings.siteName || 'R Sender'} Delivery Verified! ✅</h2>
             <p>This is a live test email sent via API key: <strong>${chosenApi.name}</strong>.</p>
             <p>Timestamp: ${new Date().toLocaleString()}</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
-            <small style="color: #64748b;">Dispatched via R Sender Automation Engine</small>
+            <small style="color: #64748b;">Dispatched via ${settings.siteName || 'R Sender'} Automation Engine</small>
           </div>
         `,
-        text: `R Sender Delivery Verified! This is a test email sent via API key: ${chosenApi.name}.`,
+        text: `${settings.siteName || 'R Sender'} Delivery Verified! This is a test email sent via API key: ${chosenApi.name}.`,
       });
 
       if (res.success) {

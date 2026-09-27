@@ -80,7 +80,7 @@ export const ContentPage: React.FC = () => {
   const generateRandomUsName = () => {
     const randomFirst = usaFirstNames[Math.floor(Math.random() * usaFirstNames.length)];
     const randomLast = usaLastNames[Math.floor(Math.random() * usaLastNames.length)];
-    const generated = `${randomFirst} ${randomLast} from R Sender`;
+    const generated = `${randomFirst} ${randomLast} from ${settings.siteName || 'R Sender'}`;
     setSenderName(generated);
   };
 
@@ -157,7 +157,7 @@ export const ContentPage: React.FC = () => {
       const payloadText = bodyText.trim() ? bodyText : htmlToPlainText(payloadHtml);
 
       await updateContent({
-        senderNames: senderName.trim() ? [senderName.trim()] : ['R Sender Support'],
+        senderNames: senderName.trim() ? [senderName.trim()] : [settings.defaultSenderName || `${settings.siteName || 'R Sender'} Support`],
         subjects: subject.trim() ? [subject.trim()] : ['Update regarding your account {name}'],
         bodyHtml: payloadHtml,
         bodyText: payloadText,
@@ -191,7 +191,7 @@ export const ContentPage: React.FC = () => {
       const finalPresetText = bodyText.trim() ? bodyText : htmlToPlainText(bodyHtml);
       const created = await addPreset({
         title: presetTitleInput.trim(),
-        sender: senderName.trim() || 'R Sender Support',
+        sender: senderName.trim() || settings.defaultSenderName || `${settings.siteName || 'R Sender'} Support`,
         subject: subject.trim() || 'Update regarding your account {name}',
         html: bodyHtml,
         text: finalPresetText,
@@ -425,7 +425,7 @@ export const ContentPage: React.FC = () => {
               id="subjectInput"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Quick update regarding your R Sender account {name}"
+              placeholder={`Quick update regarding your ${settings.siteName || 'R Sender'} account {name}`}
               className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors"
             />
           </div>

@@ -161,7 +161,7 @@ export const TasksPage: React.FC = () => {
       apiIds: selectedApiIds,
       recipients: parsedRecipients,
       delayMs,
-      senderName: (content?.senderNames && content.senderNames[0] && content.senderNames[0] !== 'Sarah from R Sender' && content.senderNames[0] !== 'R Sender Support')
+      senderName: (content?.senderNames && content.senderNames[0] && content.senderNames[0] !== `Sarah from ${settings.siteName || 'R Sender'}` && content.senderNames[0] !== `${settings.siteName || 'R Sender'} Support` && content.senderNames[0] !== settings.defaultSenderName)
         ? content.senderNames[0].trim()
         : '',
       subject: (content?.subjects && content.subjects[0]?.trim()) || 'Notification for {name}',

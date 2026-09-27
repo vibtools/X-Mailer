@@ -1688,3 +1688,13 @@ eon_users.
 eonUsers back to 
 eon_users in server.ts. Committed and pushed the hotfix to the repository.
 - **Verification:** Users and admins can now authenticate normally again as the exact database table reference is restored.
+
+### Session 29: Global Settings (Logo/Favicon/Site Name) Binding Fixes
+- **Objective:** Fix the issue where updates to site settings (Site Name, Logo, Favicon) in the Admin Panel were not reflecting globally across all pages for users and admins.
+- **Root Cause:** Multiple UI components (App.tsx, ApisPage.tsx, ContentPage.tsx, SettingsPage.tsx, TasksPage.tsx, AdminContentPage.tsx) contained hardcoded string literals for "R Sender", "R Sender Support", "R Sender Admin", and hardcoded test email payloads instead of dynamically subscribing to the global \settings\ context.
+- **Actions Taken:** 
+  1. Searched the entire codebase for hardcoded "R Sender" string literals.
+  2. Dynamically bound fallback strings to \settings.siteName\ and \settings.defaultSenderName\ across all UI components, template literals, and input placeholders.
+  3. Ensured that test emails sent from \ApisPage.tsx\ and \SettingsPage.tsx\ now correctly inject the dynamic \settings.siteName\ into the subject and HTML body.
+- **Verification:** All frontend instances of the application identity now fully respect the \siteName\, \siteLogo\, and \defaultSenderName\ set in the database without requiring hardcoded fallbacks.
+

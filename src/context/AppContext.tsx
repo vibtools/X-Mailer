@@ -716,7 +716,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (!rawSenderName && availableSenderNames.length > 0) {
       rawSenderName = availableSenderNames[0];
     }
-    if (!rawSenderName || rawSenderName === 'R Sender' || rawSenderName === 'Sarah from R Sender' || rawSenderName === 'R Sender Support') {
+    if (!rawSenderName || rawSenderName === settings.siteName || rawSenderName === `Sarah from ${settings.siteName || 'R Sender'}` || rawSenderName === `${settings.siteName || 'R Sender'} Support` || rawSenderName === settings.defaultSenderName) {
       const emailForName = (selectedApi.senderEmail || '').trim();
       if (settings.companyName && settings.companyName.trim()) {
         rawSenderName = settings.companyName.trim();

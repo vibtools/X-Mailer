@@ -289,7 +289,7 @@ export const AdminContentPage: React.FC = () => {
     } else {
       await addPreset({
         title: presetTitle.trim(),
-        sender: presetSender.trim() || 'R Sender Support',
+        sender: presetSender.trim() || settings.defaultSenderName || `${settings.siteName || 'R Sender'} Support`,
         subject: presetSubject.trim() || 'Update regarding your account {name}',
         html: presetHtml,
         text: finalPresetText,
@@ -356,7 +356,7 @@ export const AdminContentPage: React.FC = () => {
       recipient: {
         email: testRecipient.trim(),
         name: 'Admin Test User',
-        company: 'R Sender Admin',
+        company: `${settings.siteName || 'R Sender'} Admin`,
       },
       sender: {
         email: settings?.defaultSenderEmail || 'mail@domain.com',
@@ -497,7 +497,7 @@ export const AdminContentPage: React.FC = () => {
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Quick update regarding your R Sender account {name}"
+                  placeholder={`Quick update regarding your ${settings.siteName || 'R Sender'} account {name}`}
                   className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors"
                 />
               </div>

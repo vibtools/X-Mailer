@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -141,7 +141,7 @@ function MainApp() {
       case 'settings':
         return 'User Account Settings';
       default:
-        return 'R Sender';
+        return settings.siteName || 'R Sender';
     }
   };
 
@@ -185,3 +185,4 @@ export default function App() {
     </AppProvider>
   );
 }
+

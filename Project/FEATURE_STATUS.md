@@ -17,6 +17,7 @@
 ### 1.2 Channel & Provider Orchestration
 - [x] **Resend API Channels:** Key registration, domain verification lookup (`/domains`), daily limit tracking, usage progress indicators.
 - [x] **Custom SMTP Channels:** Nodemailer integration with host, port, user, pass, SSL/TLS, and standalone handshake verification.
+- [x] **Zoho Mail OAuth 2.0 / REST API Integration (Scope Locked):** Official Zoho Mail API integration (`ZohoMail.messages.CREATE` and `ZohoMail.accounts.READ`) supporting multi-region data centers (.com, .eu, .in, .com.au, .jp, .ca, .com.cn), OAuth 2.0 token caching, automatic account ID discovery, and high-velocity dispatch.
 - [x] **Round-Robin Multi-Key Rotation:** Automatic key cycling across task-assigned channels with usage counters.
 - [x] **Adaptive Rate Limit Backoff (Phase 6):** Automatic 3-attempt retry with progressive backoff on provider HTTP 429 errors.
 

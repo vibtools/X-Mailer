@@ -82,19 +82,42 @@ export const SettingsPage: React.FC = () => {
     try {
       const res = await sendEmailViaResend({
         apiKey: chosenApi.key,
+        key: chosenApi.key,
+        apiId: chosenApi.id,
         from: `${defaultSenderName} <${chosenApi.senderEmail}>`,
         to: testRecipient.trim(),
         subject: `🧪 ${settings.siteName || 'R Sender'} Live Delivery Diagnostic`,
+        providerType: chosenApi.providerType || chosenApi.provider_type,
+        provider_type: chosenApi.provider_type || chosenApi.providerType,
+        smtpHost: chosenApi.smtpHost || chosenApi.smtp_host,
+        smtp_host: chosenApi.smtp_host || chosenApi.smtpHost,
+        smtpPort: chosenApi.smtpPort ?? chosenApi.smtp_port,
+        smtp_port: chosenApi.smtp_port ?? chosenApi.smtpPort,
+        smtpSecure: chosenApi.smtpSecure !== undefined ? chosenApi.smtpSecure : chosenApi.smtp_secure,
+        smtp_secure: chosenApi.smtp_secure !== undefined ? chosenApi.smtp_secure : chosenApi.smtpSecure,
+        smtpUser: chosenApi.smtpUser || chosenApi.smtp_user,
+        smtpPass: chosenApi.smtpPass || chosenApi.smtp_pass,
+        smtp_pass: chosenApi.smtp_pass || chosenApi.smtpPass,
+        zohoClientId: chosenApi.zohoClientId || chosenApi.zoho_client_id,
+        zoho_client_id: chosenApi.zoho_client_id || chosenApi.zohoClientId,
+        zohoClientSecret: chosenApi.zohoClientSecret || chosenApi.zoho_client_secret,
+        zoho_client_secret: chosenApi.zoho_client_secret || chosenApi.zohoClientSecret,
+        zohoRefreshToken: chosenApi.zohoRefreshToken || chosenApi.zoho_refresh_token,
+        zoho_refresh_token: chosenApi.zoho_refresh_token || chosenApi.zohoRefreshToken,
+        zohoAccountId: chosenApi.zohoAccountId || chosenApi.zoho_account_id,
+        zoho_account_id: chosenApi.zoho_account_id || chosenApi.zohoAccountId,
+        zohoRegion: chosenApi.zohoRegion || chosenApi.zoho_region,
+        zoho_region: chosenApi.zoho_region || chosenApi.zohoRegion,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
             <h2 style="color: #4f46e5;">${settings.siteName || 'R Sender'} Delivery Verified! ✅</h2>
-            <p>This is a live test email sent via API key: <strong>${chosenApi.name}</strong>.</p>
+            <p>This is a live test email sent via channel: <strong>${chosenApi.name}</strong> [${(chosenApi.providerType || chosenApi.provider_type || (chosenApi.zohoRefreshToken ? 'zoho' : chosenApi.smtpHost ? 'smtp' : 'resend')).toUpperCase()}].</p>
             <p>Timestamp: ${new Date().toLocaleString()}</p>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 16px 0;" />
             <small style="color: #64748b;">Dispatched via ${settings.siteName || 'R Sender'} Automation Engine</small>
           </div>
         `,
-        text: `${settings.siteName || 'R Sender'} Delivery Verified! This is a test email sent via API key: ${chosenApi.name}.`,
+        text: `${settings.siteName || 'R Sender'} Delivery Verified! This is a test email sent via channel: ${chosenApi.name}.`,
       });
 
       if (res.success) {
@@ -411,7 +434,7 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <div>
-              <label className="block text-[11px] font-normal text-slate-400 mb-0.5">Select API Key</label>
+              <label className="block text-[11px] font-normal text-slate-400 mb-0.5">Select Channel</label>
               <select
                 value={selectedApiKeyId || (apis[0]?.id || '')}
                 onChange={(e) => setSelectedApiKeyId(e.target.value)}
@@ -419,13 +442,18 @@ export const SettingsPage: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none disabled:opacity-50"
               >
                 {apis.length === 0 ? (
-                  <option value="" disabled>No API Key connected</option>
+                  <option value="" disabled>No channel connected</option>
                 ) : (
-                  apis.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.senderEmail})
-                    </option>
-                  ))
+                  apis.map((a) => {
+                    const isZoho = (a.providerType || a.provider_type) === 'zoho' || Boolean(a.zohoRefreshToken || a.zoho_refresh_token);
+                    const isSmtp = !isZoho && ((a.providerType || a.provider_type) === 'smtp' || Boolean(a.smtpHost || a.smtp_host));
+                    const tag = isZoho ? '[ZOHO]' : isSmtp ? '[SMTP]' : '[RESEND]';
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {tag} {a.name} ({a.senderEmail})
+                      </option>
+                    );
+                  })
                 )}
               </select>
             </div>

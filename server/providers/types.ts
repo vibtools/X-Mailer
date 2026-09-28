@@ -2,7 +2,7 @@
  * Email Provider Types & Unified Contracts for R Sender
  */
 
-export type ProviderType = 'resend' | 'smtp';
+export type ProviderType = 'resend' | 'smtp' | 'zoho';
 
 export interface EmailChannel {
   id: string;
@@ -23,6 +23,13 @@ export interface EmailChannel {
   smtp_tls_reject_unauthorized?: boolean;
   smtp_user?: string;
   smtp_pass?: string;
+
+  // Zoho Mail API configuration
+  zoho_client_id?: string;
+  zoho_client_secret?: string;
+  zoho_refresh_token?: string;
+  zoho_account_id?: string;
+  zoho_region?: string; // 'com' | 'eu' | 'in' | 'com.au' | 'jp' | 'ca' | 'com.cn'
 }
 
 export interface EmailAttachment {

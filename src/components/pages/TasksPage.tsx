@@ -522,7 +522,8 @@ export const TasksPage: React.FC = () => {
                   <div className="max-h-[110px] overflow-y-auto border border-[#1e293b] rounded-[4px] bg-[#1a2234]/20 flex flex-col gap-px">
                     {availableApis.map((api) => {
                       const isChecked = selectedApiIds.includes(api.id);
-                      const isSmtp = (api.providerType || api.provider_type) === 'smtp' || Boolean(api.smtpHost || api.smtp_host);
+                      const isZoho = (api.providerType || api.provider_type) === 'zoho' || Boolean(api.zohoRefreshToken || api.zoho_refresh_token);
+                      const isSmtp = !isZoho && ((api.providerType || api.provider_type) === 'smtp' || Boolean(api.smtpHost || api.smtp_host));
                       return (
                         <label
                           key={api.id}
@@ -539,17 +540,19 @@ export const TasksPage: React.FC = () => {
                               {api.name}
                             </span>
                             <span className="text-[10px] text-[#94a3b8] truncate font-mono">
-                              ({api.senderEmail || (isSmtp ? api.smtpUser : 'No sender email')})
+                              ({api.senderEmail || (isZoho ? api.zohoAccountId || 'Zoho Account' : isSmtp ? api.smtpUser : 'No sender email')})
                             </span>
                           </div>
                           <span
                             className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded font-medium shrink-0 border ${
-                              isSmtp
+                              isZoho
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                : isSmtp
                                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                                 : 'bg-purple-500/10 text-purple-400 border-purple-500/30'
                             }`}
                           >
-                            {isSmtp ? 'SMTP' : 'RESEND'}
+                            {isZoho ? 'ZOHO' : isSmtp ? 'SMTP' : 'RESEND'}
                           </span>
                         </label>
                       );

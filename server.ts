@@ -788,6 +788,16 @@ async function startServer() {
         smtp_user: r.smtp_user || "",
         smtpPass: r.smtp_pass || "",
         smtp_pass: r.smtp_pass || "",
+        zohoClientId: r.zoho_client_id || "",
+        zoho_client_id: r.zoho_client_id || "",
+        zohoClientSecret: r.zoho_client_secret || "",
+        zoho_client_secret: r.zoho_client_secret || "",
+        zohoRefreshToken: r.zoho_refresh_token || "",
+        zoho_refresh_token: r.zoho_refresh_token || "",
+        zohoAccountId: r.zoho_account_id || "",
+        zoho_account_id: r.zoho_account_id || "",
+        zohoRegion: r.zoho_region || "com",
+        zoho_region: r.zoho_region || "com",
         createdAt: r.created_at
           ? (typeof r.created_at === "string"
               ? r.created_at.split("T")[0]
@@ -825,9 +835,19 @@ async function startServer() {
         smtp_user,
         smtpPass,
         smtp_pass,
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
       } = req.body;
 
-      const provider = providerType || provider_type || (smtpHost || smtp_host ? "smtp" : "resend");
+      const provider = providerType || provider_type || (zohoRefreshToken || zoho_refresh_token ? "zoho" : smtpHost || smtp_host ? "smtp" : "resend");
       if (!name || !name.trim()) {
         return res.status(400).json({ error: "Channel name is required." });
       }
@@ -841,10 +861,21 @@ async function startServer() {
       const effectiveSecure = smtpSecure !== undefined ? Boolean(smtpSecure) : (smtp_secure !== undefined ? Boolean(smtp_secure) : effectivePort === 465);
       const effectiveUser = smtpUser || smtp_user || "";
       const effectivePass = smtpPass !== undefined ? smtpPass : (smtp_pass || "");
-      const effectiveSender = senderEmail?.trim() || effectiveUser || "";
+      
+      const effectiveZohoClientId = (zohoClientId || zoho_client_id || "").trim();
+      const effectiveZohoClientSecret = (zohoClientSecret || zoho_client_secret || "").trim();
+      const effectiveZohoRefreshToken = (zohoRefreshToken || zoho_refresh_token || "").trim();
+      const effectiveZohoAccountId = (zohoAccountId || zoho_account_id || "").trim();
+      const effectiveZohoRegion = (zohoRegion || zoho_region || "com").trim();
+
+      const effectiveSender = senderEmail?.trim() || effectiveUser || effectiveZohoAccountId || "";
 
       if (provider === "smtp" && (!effectiveHost || !effectiveUser)) {
         return res.status(400).json({ error: "SMTP Host and Username are required for custom SMTP channel." });
+      }
+
+      if (provider === "zoho" && (!effectiveZohoClientId || !effectiveZohoClientSecret || !effectiveZohoRefreshToken)) {
+        return res.status(400).json({ error: "Zoho Client ID, Client Secret, and Refresh Token are required for Zoho channel." });
       }
 
       const id = customId || `api_${provider}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -870,9 +901,20 @@ async function startServer() {
           smtp_port: effectivePort,
           smtpSecure: effectiveSecure,
           smtp_secure: effectiveSecure,
+          smtpUser: effectiveUser,
           smtp_user: effectiveUser,
           smtpPass: effectivePass,
           smtp_pass: effectivePass,
+          zohoClientId: effectiveZohoClientId,
+          zoho_client_id: effectiveZohoClientId,
+          zohoClientSecret: effectiveZohoClientSecret,
+          zoho_client_secret: effectiveZohoClientSecret,
+          zohoRefreshToken: effectiveZohoRefreshToken,
+          zoho_refresh_token: effectiveZohoRefreshToken,
+          zohoAccountId: effectiveZohoAccountId,
+          zoho_account_id: effectiveZohoAccountId,
+          zohoRegion: effectiveZohoRegion,
+          zoho_region: effectiveZohoRegion,
           createdAt: nowIso,
         };
         inMemoryApis.unshift(memoryApi);
@@ -882,9 +924,10 @@ async function startServer() {
       const { rows } = await pool.query(
         `INSERT INTO neon_apis (
            id, user_id, name, key, sender_email, daily_limit, used_today, status,
-           last_tested, test_status_msg, provider_type, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass
+           last_tested, test_status_msg, provider_type, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass,
+           zoho_client_id, zoho_client_secret, zoho_refresh_token, zoho_account_id, zoho_region
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
          RETURNING *`,
         [
           id,
@@ -903,13 +946,18 @@ async function startServer() {
           effectiveSecure,
           effectiveUser,
           effectivePass,
+          effectiveZohoClientId,
+          effectiveZohoClientSecret,
+          effectiveZohoRefreshToken,
+          effectiveZohoAccountId,
+          effectiveZohoRegion,
         ],
       );
 
       await insertNeonLog({
         level: "success",
         apiName: name,
-        message: `Registered new ${provider.toUpperCase()} channel in Neon Postgres: "${name}" (${effectiveSender || effectiveHost})`,
+        message: `Registered new ${provider.toUpperCase()} channel in Neon Postgres: "${name}" (${effectiveSender || effectiveHost || effectiveZohoAccountId})`,
       });
 
       const r = rows[0];
@@ -936,6 +984,16 @@ async function startServer() {
         smtp_user: r.smtp_user || "",
         smtpPass: r.smtp_pass || "",
         smtp_pass: r.smtp_pass || "",
+        zohoClientId: r.zoho_client_id || "",
+        zoho_client_id: r.zoho_client_id || "",
+        zohoClientSecret: r.zoho_client_secret || "",
+        zoho_client_secret: r.zoho_client_secret || "",
+        zohoRefreshToken: r.zoho_refresh_token || "",
+        zoho_refresh_token: r.zoho_refresh_token || "",
+        zohoAccountId: r.zoho_account_id || "",
+        zoho_account_id: r.zoho_account_id || "",
+        zohoRegion: r.zoho_region || "com",
+        zoho_region: r.zoho_region || "com",
         createdAt: nowIso,
       });
     } catch (err: any) {
@@ -968,6 +1026,16 @@ async function startServer() {
         smtp_user,
         smtpPass,
         smtp_pass,
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
       } = req.body;
 
       evictChannel(id);
@@ -978,6 +1046,12 @@ async function startServer() {
       const targetSecure = smtpSecure !== undefined ? Boolean(smtpSecure) : (smtp_secure !== undefined ? Boolean(smtp_secure) : undefined);
       const targetUser = smtpUser !== undefined ? smtpUser : smtp_user;
       const targetPass = smtpPass !== undefined ? smtpPass : smtp_pass;
+
+      const targetZohoClientId = zohoClientId !== undefined ? zohoClientId : zoho_client_id;
+      const targetZohoClientSecret = zohoClientSecret !== undefined ? zohoClientSecret : zoho_client_secret;
+      const targetZohoRefreshToken = zohoRefreshToken !== undefined ? zohoRefreshToken : zoho_refresh_token;
+      const targetZohoAccountId = zohoAccountId !== undefined ? zohoAccountId : zoho_account_id;
+      const targetZohoRegion = zohoRegion !== undefined ? zohoRegion : zoho_region;
 
       if (!hasRealDatabaseUrl) {
         const existingIdx = inMemoryApis.findIndex((a) => a.id === id);
@@ -1007,8 +1081,13 @@ async function startServer() {
              smtp_port = COALESCE($12, smtp_port),
              smtp_secure = COALESCE($13, smtp_secure),
              smtp_user = COALESCE($14, smtp_user),
-             smtp_pass = COALESCE($15, smtp_pass)
-         WHERE id = $16
+             smtp_pass = COALESCE($15, smtp_pass),
+             zoho_client_id = COALESCE($16, zoho_client_id),
+             zoho_client_secret = COALESCE($17, zoho_client_secret),
+             zoho_refresh_token = COALESCE($18, zoho_refresh_token),
+             zoho_account_id = COALESCE($19, zoho_account_id),
+             zoho_region = COALESCE($20, zoho_region)
+         WHERE id = $21
          RETURNING *`,
         [
           userId ?? null,
@@ -1026,6 +1105,11 @@ async function startServer() {
           targetSecure ?? null,
           targetUser ?? null,
           targetPass ?? null,
+          targetZohoClientId ?? null,
+          targetZohoClientSecret ?? null,
+          targetZohoRefreshToken ?? null,
+          targetZohoAccountId ?? null,
+          targetZohoRegion ?? null,
           id,
         ],
       );
@@ -1056,6 +1140,16 @@ async function startServer() {
         smtp_user: r.smtp_user || "",
         smtpPass: r.smtp_pass || "",
         smtp_pass: r.smtp_pass || "",
+        zohoClientId: r.zoho_client_id || "",
+        zoho_client_id: r.zoho_client_id || "",
+        zohoClientSecret: r.zoho_client_secret || "",
+        zoho_client_secret: r.zoho_client_secret || "",
+        zohoRefreshToken: r.zoho_refresh_token || "",
+        zoho_refresh_token: r.zoho_refresh_token || "",
+        zohoAccountId: r.zoho_account_id || "",
+        zoho_account_id: r.zoho_account_id || "",
+        zohoRegion: r.zoho_region || "com",
+        zoho_region: r.zoho_region || "com",
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1128,6 +1222,57 @@ async function startServer() {
       return res.status(500).json({
         success: false,
         message: err.message || "Failed to verify SMTP server",
+      });
+    }
+  });
+
+  // Verify Zoho Mail API connection endpoint
+  app.post("/api/zoho/verify", async (req: Request, res: Response) => {
+    try {
+      const {
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
+        senderEmail,
+      } = req.body;
+
+      const clientId = (zohoClientId || zoho_client_id || "").trim();
+      const clientSecret = (zohoClientSecret || zoho_client_secret || "").trim();
+      const refreshToken = (zohoRefreshToken || zoho_refresh_token || "").trim();
+      const accountId = (zohoAccountId || zoho_account_id || "").trim();
+      const region = (zohoRegion || zoho_region || "com").trim();
+
+      if (!clientId || !clientSecret || !refreshToken) {
+        return res.status(400).json({
+          success: false,
+          message: "Client ID, Client Secret, and Refresh Token are required for Zoho Mail verification",
+        });
+      }
+
+      const verifyRes = await verifyChannel({
+        id: "zoho_probe",
+        name: "Zoho Probe",
+        provider_type: "zoho",
+        sender_email: senderEmail || accountId,
+        zoho_client_id: clientId,
+        zoho_client_secret: clientSecret,
+        zoho_refresh_token: refreshToken,
+        zoho_account_id: accountId,
+        zoho_region: region,
+      });
+
+      return res.json(verifyRes);
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Failed to verify Zoho Mail connection",
       });
     }
   });
@@ -2603,6 +2748,16 @@ async function startServer() {
         smtp_user,
         smtpPass,
         smtp_pass,
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
         open_tracking,
         openTracking,
         click_tracking,
@@ -2681,7 +2836,7 @@ async function startServer() {
       let resolvedChannel: EmailChannel = {
         id: apiId || "manual_channel",
         name: apiName || "Sender Channel",
-        provider_type: providerType || provider_type || (smtpHost || smtp_host ? "smtp" : "resend"),
+        provider_type: providerType || provider_type || (zohoRefreshToken || zoho_refresh_token ? "zoho" : smtpHost || smtp_host ? "smtp" : "resend"),
         key: (apiKey || key || "").trim(),
         sender_email: formattedFrom,
         smtp_host: smtpHost || smtp_host,
@@ -2689,9 +2844,14 @@ async function startServer() {
         smtp_secure: smtpSecure !== undefined ? Boolean(smtpSecure) : (smtp_secure !== undefined ? Boolean(smtp_secure) : undefined),
         smtp_user: smtpUser || smtp_user,
         smtp_pass: smtpPass !== undefined ? smtpPass : smtp_pass,
+        zoho_client_id: zohoClientId || zoho_client_id,
+        zoho_client_secret: zohoClientSecret || zoho_client_secret,
+        zoho_refresh_token: zohoRefreshToken || zoho_refresh_token,
+        zoho_account_id: zohoAccountId || zoho_account_id,
+        zoho_region: zohoRegion || zoho_region,
       };
 
-      if (apiId && !resolvedChannel.smtp_host && !resolvedChannel.key) {
+      if (apiId && !resolvedChannel.smtp_host && !resolvedChannel.key && !resolvedChannel.zoho_refresh_token) {
         if (hasRealDatabaseUrl) {
           const { rows: dbRows } = await pool.query(
             "SELECT * FROM neon_apis WHERE id = $1 LIMIT 1",
@@ -2710,6 +2870,11 @@ async function startServer() {
               smtp_secure: Boolean(r.smtp_secure),
               smtp_user: r.smtp_user || "",
               smtp_pass: r.smtp_pass || "",
+              zoho_client_id: r.zoho_client_id || "",
+              zoho_client_secret: r.zoho_client_secret || "",
+              zoho_refresh_token: r.zoho_refresh_token || "",
+              zoho_account_id: r.zoho_account_id || "",
+              zoho_region: r.zoho_region || "com",
             };
           }
         } else {
@@ -2726,6 +2891,11 @@ async function startServer() {
               smtp_secure: Boolean(mem.smtpSecure || mem.smtp_secure),
               smtp_user: mem.smtpUser || mem.smtp_user || "",
               smtp_pass: mem.smtpPass || mem.smtp_pass || "",
+              zoho_client_id: mem.zohoClientId || mem.zoho_client_id || "",
+              zoho_client_secret: mem.zohoClientSecret || mem.zoho_client_secret || "",
+              zoho_refresh_token: mem.zohoRefreshToken || mem.zoho_refresh_token || "",
+              zoho_account_id: mem.zohoAccountId || mem.zoho_account_id || "",
+              zoho_region: mem.zohoRegion || mem.zoho_region || "com",
             };
           }
         }
@@ -2737,6 +2907,13 @@ async function startServer() {
           return res.status(400).json({
             success: false,
             error: "SMTP host and username are required for SMTP dispatch.",
+          });
+        }
+      } else if (resolvedChannel.provider_type === "zoho") {
+        if (!resolvedChannel.zoho_client_id || !resolvedChannel.zoho_client_secret || !resolvedChannel.zoho_refresh_token) {
+          return res.status(400).json({
+            success: false,
+            error: "Zoho Client ID, Client Secret, and Refresh Token are required for Zoho dispatch.",
           });
         }
       } else {

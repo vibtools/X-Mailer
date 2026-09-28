@@ -1,0 +1,6 @@
+{
+  "summary":  "Comprehensive, scope-locked implementation plan for integrating Zoho Mail OAuth REST API as a first-class Sender Channel provider without affecting existing Resend API, Custom SMTP, queue rotation, or admin features.",
+  "updatedAt":  "2026-09-28T14:28:56.803149743Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

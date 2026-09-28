@@ -23,8 +23,10 @@ export function extractSenderDomain(from?: string): string | undefined {
 export function generateRfc5322MessageId(from?: string, fallbackHost?: string): string {
   const domain = extractSenderDomain(from) || fallbackHost || "smtp.local";
   const timestamp = Date.now();
-  const randomHex = crypto.randomBytes(8).toString("hex");
-  const pid = process.pid ? process.pid.toString(36) : "1";
+  const randomBytes = new Uint8Array(8);
+  crypto.getRandomValues(randomBytes);
+  const randomHex = Array.from(randomBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const pid = (typeof process !== "undefined" && process.pid) ? process.pid.toString(36) : "1";
   return `<${timestamp}.${pid}.${randomHex}@${domain}>`;
 }
 

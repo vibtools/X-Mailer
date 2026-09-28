@@ -1738,5 +1738,35 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   5. **Admin Pages (`AdminDomainsPage.tsx`, `AdminUsersPage.tsx`, `AdminContentPage.tsx`):** Replaced all instances of `✕`, `×`, and `&times;` in modal close buttons and attachment removal buttons with `<X className="w-4 h-4" />`.
 - **Verification:** `npm run lint` (`tsc --noEmit`) and `npm run build` validated with 0 errors. All icons across User & Admin panels render using Lucide SVG components.
 
+### Session 34: Zoho Mail Auth API (REST API / OAuth 2.0) Integration with Scope Lock
+- **Objective:** Add official Zoho Mail Auth API support (OAuth 2.0 / REST API) for sending emails and verifying credentials alongside existing Resend API and Custom SMTP systems, with strict Scope Lock (`ZohoMail.messages.CREATE` and `ZohoMail.accounts.READ`).
+- **Scope Lock Architecture:**
+  - Token endpoint: `https://accounts.zoho.{region}/oauth/v2/token`
+  - Mail REST endpoint: `https://mail.zoho.{region}/api/accounts/{accountId}/messages`
+  - Multi-region domain support: Global (.com), Europe (.eu), India (.in), Australia (.com.au), Japan (.jp), Canada (.ca), China (.com.cn).
+  - Scope verification: Verified refresh token access, automatically resolved `accountId` via accounts API if not provided, and handled email dispatch with HTML bodies, recipients, attachments, custom headers, and subject.
+- **Key Files & Changes:**
+  1. `server/providers/zoho.ts`: Zoho Mail API provider implementing `sendWithZoho` and `verifyZoho`, token refresh caching, account discovery, and scope validation.
+  2. `server/providers/types.ts` & `server/providers/index.ts`: Added `zoho` provider type and dispatch mapping in `sendEmailUnified`.
+  3. `server.ts` & `functions/api/[[catchall]].ts`: Added database schema migrations for `zoho_client_id`, `zoho_client_secret`, `zoho_refresh_token`, `zoho_account_id`, `zoho_region`, CRUD routes in `/api/apis`, `/api/zoho/verify` endpoint, and channel resolution in `/api/send`.
+  4. `src/types/index.ts` & `src/services/apiService.ts`: Added Zoho credentials typing to `ResendApiKey`, `SendEmailPayload`, and `verifyZohoChannelApi`.
+  5. `src/components/pages/ApisPage.tsx`: Added Zoho Mail options, region selector, credential fields, diagnostic testing, edit modal support, and amber ZOHO badges in channels table.
+  6. `src/components/pages/TasksPage.tsx`: Added Zoho channel badge and sender identification in campaign channel selection.
+  7. `src/context/AppContext.tsx`: Passed Zoho credentials in task queue email dispatches.
+- **Verification:** `lint_applet` (`tsc --noEmit`) and `compile_applet` validated with 0 errors. Full-stack dev server running smoothly.
 
+### Session 35: Forensic Audit & Production Verification of Zoho Mail Integration (Scope Locked)
+- **Objective:** Perform exhaustive forensic verification, missing/mismatch/mistake audit, and production hardening on the newly integrated Zoho Mail OAuth / REST API system under strict Scope Lock without affecting any other feature.
+- **Audit Findings & Hardening Applied:**
+  1. **Attachment Prefix Stripping in Zoho REST Dispatch (`server/providers/zoho.ts`):** Sanitized `payload.attachments` to automatically strip `data:[^;]+;base64,` prefixes before transmitting binary data to Zoho Mail API.
+  2. **Recipient Array Normalization (`server/providers/zoho.ts`):** Normalized `toAddress` to cleanly handle both array and string recipient lists (`Array.isArray(payload.to) ? payload.to.join(',') : String(payload.to)`).
+  3. **DDL Schema Completeness (`server/db.ts` & `functions/api/[[catchall]].ts`):** Updated `CREATE TABLE IF NOT EXISTS neon_apis` in both Node/Express and Cloudflare Functions to include all Zoho columns (`zoho_client_id`, `zoho_client_secret`, `zoho_refresh_token`, `zoho_account_id`, `zoho_region`) for zero-friction fresh provisioning.
+  4. **Test Dispatch Provider Parity (`AdminContentPage.tsx` & `SettingsPage.tsx`):** Extended `handleSendTestEmail` in Admin Content Page and User Settings Page to pass `apiId` and full provider parameters (`providerType`, `smtp_*`, `zoho_*`), enabling live diagnostic test sends across all three channel types (Resend, Custom SMTP, Zoho Mail).
+  5. **Edge Crypto Typing Parity (`server/providers/smtp.ts`):** Updated `generateRfc5322MessageId` to use universal `crypto.getRandomValues(new Uint8Array(8))` for full cross-runtime compatibility with `@cloudflare/workers-types`.
+  6. **Zero Mock / Fake Policy Enforced:** Verified 100% genuine implementation using real Zoho OAuth token refresh endpoints, real REST dispatch endpoints, and real Neon DB persistence.
+- **Verification:**
+  - `lint_applet` (`tsc --noEmit`): 0 errors.
+  - `functions/tsconfig.json` (`npx tsc -p functions/tsconfig.json --noEmit`): 0 errors.
+  - `compile_applet` (`vite build`): Built successfully.
+  - Development server operational and verified.
 

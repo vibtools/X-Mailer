@@ -235,6 +235,11 @@ export async function initDatabase() {
           smtp_secure BOOLEAN DEFAULT FALSE,
           smtp_user VARCHAR(255),
           smtp_pass TEXT,
+          zoho_client_id VARCHAR(255),
+          zoho_client_secret TEXT,
+          zoho_refresh_token TEXT,
+          zoho_account_id VARCHAR(255),
+          zoho_region VARCHAR(50) DEFAULT 'com',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -348,6 +353,21 @@ export async function initDatabase() {
       ).catch(() => {});
       await client.query(
         `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS smtp_pass TEXT;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_client_id VARCHAR(255);`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_client_secret TEXT;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_refresh_token TEXT;`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_account_id VARCHAR(255);`,
+      ).catch(() => {});
+      await client.query(
+        `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_region VARCHAR(50) DEFAULT 'com';`,
       ).catch(() => {});
       await client.query(
         `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS user_id VARCHAR(100) DEFAULT '';`,

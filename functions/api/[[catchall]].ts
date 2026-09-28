@@ -5,6 +5,7 @@ import { neon, Pool } from "@neondatabase/serverless";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "node:crypto";
 import { sendWithSmtp, verifySmtp } from "../../server/providers/smtp";
+import { sendWithZoho, verifyZoho } from "../../server/providers/zoho";
 import { EmailChannel } from "../../server/providers/types";
 
 interface Env {
@@ -536,6 +537,11 @@ const DDL_STATEMENTS = [
     smtp_secure BOOLEAN DEFAULT FALSE,
     smtp_user VARCHAR(255),
     smtp_pass TEXT,
+    zoho_client_id TEXT,
+    zoho_client_secret TEXT,
+    zoho_refresh_token TEXT,
+    zoho_account_id VARCHAR(255),
+    zoho_region VARCHAR(50) DEFAULT 'com',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS neon_users (
@@ -642,6 +648,11 @@ const DDL_STATEMENTS = [
   `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS smtp_secure BOOLEAN DEFAULT FALSE;`,
   `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS smtp_user VARCHAR(255);`,
   `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS smtp_pass TEXT;`,
+  `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_client_id TEXT;`,
+  `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_client_secret TEXT;`,
+  `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_refresh_token TEXT;`,
+  `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_account_id VARCHAR(255);`,
+  `ALTER TABLE neon_apis ADD COLUMN IF NOT EXISTS zoho_region VARCHAR(50) DEFAULT 'com';`,
   `ALTER TABLE neon_tasks ADD COLUMN IF NOT EXISTS api_ids JSONB DEFAULT '[]'::jsonb;`,
   `ALTER TABLE neon_content ADD COLUMN IF NOT EXISTS reply_to TEXT;`,
   `ALTER TABLE neon_content ADD COLUMN IF NOT EXISTS auto_reply_to BOOLEAN DEFAULT TRUE;`,
@@ -1224,11 +1235,27 @@ export async function onRequest(context: EventContext): Promise<Response> {
             usedToday: Number(r.used_today) || 0,
             status: r.status || "active",
             provider_type: r.provider_type || "resend",
+            providerType: r.provider_type || "resend",
             smtp_host: r.smtp_host || "",
+            smtpHost: r.smtp_host || "",
             smtp_port: Number(r.smtp_port) || 587,
+            smtpPort: Number(r.smtp_port) || 587,
             smtp_secure: Boolean(r.smtp_secure),
+            smtpSecure: Boolean(r.smtp_secure),
             smtp_user: r.smtp_user || "",
+            smtpUser: r.smtp_user || "",
             smtp_pass: r.smtp_pass || "",
+            smtpPass: r.smtp_pass || "",
+            zoho_client_id: r.zoho_client_id || "",
+            zohoClientId: r.zoho_client_id || "",
+            zoho_client_secret: r.zoho_client_secret || "",
+            zohoClientSecret: r.zoho_client_secret || "",
+            zoho_refresh_token: r.zoho_refresh_token || "",
+            zohoRefreshToken: r.zoho_refresh_token || "",
+            zoho_account_id: r.zoho_account_id || "",
+            zohoAccountId: r.zoho_account_id || "",
+            zoho_region: r.zoho_region || "com",
+            zohoRegion: r.zoho_region || "com",
             lastTested: r.last_tested || "",
             testStatusMsg: r.test_status_msg || "",
             createdAt: r.created_at
@@ -1263,11 +1290,23 @@ export async function onRequest(context: EventContext): Promise<Response> {
           smtpUser,
           smtp_pass,
           smtpPass,
+          zoho_client_id,
+          zohoClientId,
+          zoho_client_secret,
+          zohoClientSecret,
+          zoho_refresh_token,
+          zohoRefreshToken,
+          zoho_account_id,
+          zohoAccountId,
+          zoho_region,
+          zohoRegion,
         } = body;
         
-        const isSmtp = (provider_type || providerType) === 'smtp';
+        const effectiveProvider = (provider_type || providerType || (zohoRefreshToken || zoho_refresh_token ? "zoho" : smtpHost || smtp_host ? "smtp" : "resend"));
+        const isSmtp = effectiveProvider === 'smtp';
+        const isZoho = effectiveProvider === 'zoho';
 
-        if (!name || (!key && !isSmtp)) {
+        if (!name || (!key && !isSmtp && !isZoho)) {
           return errorResponse("API name and key are required", 400);
         }
         const apiId =
@@ -1275,8 +1314,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
         const nowIso = new Date().toISOString().split("T")[0];
         await runQuery(
           env,
-          `INSERT INTO neon_apis (id, user_id, name, key, sender_email, daily_limit, used_today, status, last_tested, test_status_msg, created_at, provider_type, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, $12, $13, $14, $15, $16)
+          `INSERT INTO neon_apis (
+             id, user_id, name, key, sender_email, daily_limit, used_today, status,
+             last_tested, test_status_msg, created_at, provider_type, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass,
+             zoho_client_id, zoho_client_secret, zoho_refresh_token, zoho_account_id, zoho_region
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
            ON CONFLICT (id) DO UPDATE SET
              user_id = EXCLUDED.user_id,
              name = EXCLUDED.name,
@@ -1292,7 +1335,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
              smtp_port = EXCLUDED.smtp_port,
              smtp_secure = EXCLUDED.smtp_secure,
              smtp_user = EXCLUDED.smtp_user,
-             smtp_pass = EXCLUDED.smtp_pass;`,
+             smtp_pass = EXCLUDED.smtp_pass,
+             zoho_client_id = EXCLUDED.zoho_client_id,
+             zoho_client_secret = EXCLUDED.zoho_client_secret,
+             zoho_refresh_token = EXCLUDED.zoho_refresh_token,
+             zoho_account_id = EXCLUDED.zoho_account_id,
+             zoho_region = EXCLUDED.zoho_region;`,
           [
             apiId,
             userId || "",
@@ -1304,12 +1352,17 @@ export async function onRequest(context: EventContext): Promise<Response> {
             status || "active",
             lastTested || "Just now",
             testStatusMsg || "",
-            (provider_type || providerType) || "resend",
+            effectiveProvider,
             (smtp_host || smtpHost) || null,
             (smtp_port !== undefined ? smtp_port : smtpPort) || 587,
             (smtp_secure !== undefined ? smtp_secure : smtpSecure) || false,
             (smtp_user || smtpUser) || null,
             (smtp_pass || smtpPass) || null,
+            (zoho_client_id || zohoClientId) || null,
+            (zoho_client_secret || zohoClientSecret) || null,
+            (zoho_refresh_token || zohoRefreshToken) || null,
+            (zoho_account_id || zohoAccountId) || null,
+            (zoho_region || zohoRegion) || "com",
           ],
         );
 
@@ -1338,12 +1391,28 @@ export async function onRequest(context: EventContext): Promise<Response> {
           lastTested: lastTested || "Just now",
           testStatusMsg: testStatusMsg || "",
           createdAt: nowIso,
-          provider_type: (provider_type || providerType) || "resend",
+          provider_type: effectiveProvider,
+          providerType: effectiveProvider,
           smtp_host: (smtp_host || smtpHost) || null,
+          smtpHost: (smtp_host || smtpHost) || null,
           smtp_port: (smtp_port !== undefined ? smtp_port : smtpPort) || 587,
+          smtpPort: (smtp_port !== undefined ? smtp_port : smtpPort) || 587,
           smtp_secure: (smtp_secure !== undefined ? smtp_secure : smtpSecure) || false,
+          smtpSecure: (smtp_secure !== undefined ? smtp_secure : smtpSecure) || false,
           smtp_user: (smtp_user || smtpUser) || null,
+          smtpUser: (smtp_user || smtpUser) || null,
           smtp_pass: (smtp_pass || smtpPass) || null,
+          smtpPass: (smtp_pass || smtpPass) || null,
+          zoho_client_id: (zoho_client_id || zohoClientId) || null,
+          zohoClientId: (zoho_client_id || zohoClientId) || null,
+          zoho_client_secret: (zoho_client_secret || zohoClientSecret) || null,
+          zohoClientSecret: (zoho_client_secret || zohoClientSecret) || null,
+          zoho_refresh_token: (zoho_refresh_token || zohoRefreshToken) || null,
+          zohoRefreshToken: (zoho_refresh_token || zohoRefreshToken) || null,
+          zoho_account_id: (zoho_account_id || zohoAccountId) || null,
+          zohoAccountId: (zoho_account_id || zohoAccountId) || null,
+          zoho_region: (zoho_region || zohoRegion) || "com",
+          zohoRegion: (zoho_region || zohoRegion) || "com",
         });
       }
     }
@@ -1389,6 +1458,16 @@ export async function onRequest(context: EventContext): Promise<Response> {
           smtpUser,
           smtp_pass,
           smtpPass,
+          zoho_client_id,
+          zohoClientId,
+          zoho_client_secret,
+          zohoClientSecret,
+          zoho_refresh_token,
+          zohoRefreshToken,
+          zoho_account_id,
+          zohoAccountId,
+          zoho_region,
+          zohoRegion,
         } = body;
         await runQuery(
           env,
@@ -1407,7 +1486,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
                smtp_port = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($13, smtp_port) END,
                smtp_secure = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($14, smtp_secure) END,
                smtp_user = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($15, smtp_user) END,
-               smtp_pass = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($16, smtp_pass) END
+               smtp_pass = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($16, smtp_pass) END,
+               zoho_client_id = COALESCE($17, zoho_client_id),
+               zoho_client_secret = COALESCE($18, zoho_client_secret),
+               zoho_refresh_token = COALESCE($19, zoho_refresh_token),
+               zoho_account_id = COALESCE($20, zoho_account_id),
+               zoho_region = COALESCE($21, zoho_region)
            WHERE id = $10`,
           [
             userId ?? null,
@@ -1426,6 +1510,11 @@ export async function onRequest(context: EventContext): Promise<Response> {
             (smtp_secure !== undefined ? smtp_secure : smtpSecure) ?? null,
             (smtp_user || smtpUser) ?? null,
             (smtp_pass || smtpPass) ?? null,
+            (zoho_client_id || zohoClientId) ?? null,
+            (zoho_client_secret || zohoClientSecret) ?? null,
+            (zoho_refresh_token || zohoRefreshToken) ?? null,
+            (zoho_account_id || zohoAccountId) ?? null,
+            (zoho_region || zohoRegion) ?? null,
           ],
         );
         return jsonResponse({ success: true });
@@ -2515,6 +2604,26 @@ export async function onRequest(context: EventContext): Promise<Response> {
         apiName,
         providerType,
         provider_type,
+        smtpHost,
+        smtp_host,
+        smtpPort,
+        smtp_port,
+        smtpSecure,
+        smtp_secure,
+        smtpUser,
+        smtp_user,
+        smtpPass,
+        smtp_pass,
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
         open_tracking,
         openTracking,
         click_tracking,
@@ -2537,14 +2646,19 @@ export async function onRequest(context: EventContext): Promise<Response> {
       let resolvedChannel: EmailChannel = {
         id: apiId || "temp",
         name: apiName || "Direct Channel",
-        provider_type: (providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend")) as "resend" | "smtp",
+        provider_type: (providerType || provider_type || (zohoRefreshToken || zoho_refresh_token ? "zoho" : body.smtpHost || body.smtp_host ? "smtp" : "resend")),
         key: apiKey || directKey || "",
-        sender_email: String(from || body.smtpUser || body.smtp_user || "").trim(),
+        sender_email: String(from || body.smtpUser || body.smtp_user || body.zohoAccountId || body.zoho_account_id || "").trim(),
         smtp_host: body.smtpHost || body.smtp_host,
         smtp_port: body.smtpPort || body.smtp_port ? Number(body.smtpPort || body.smtp_port) : 587,
         smtp_secure: body.smtpSecure !== undefined ? Boolean(body.smtpSecure) : (body.smtp_secure !== undefined ? Boolean(body.smtp_secure) : undefined),
         smtp_user: body.smtpUser || body.smtp_user,
         smtp_pass: body.smtpPass || body.smtp_pass,
+        zoho_client_id: zohoClientId || zoho_client_id,
+        zoho_client_secret: zohoClientSecret || zoho_client_secret,
+        zoho_refresh_token: zohoRefreshToken || zoho_refresh_token,
+        zoho_account_id: zohoAccountId || zoho_account_id,
+        zoho_region: zohoRegion || zoho_region,
       };
 
       // Resolve stored channel from Neon DB if apiId provided
@@ -2568,9 +2682,85 @@ export async function onRequest(context: EventContext): Promise<Response> {
               smtp_secure: Boolean(r.smtp_secure),
               smtp_user: r.smtp_user || "",
               smtp_pass: r.smtp_pass || "",
+              zoho_client_id: r.zoho_client_id || "",
+              zoho_client_secret: r.zoho_client_secret || "",
+              zoho_refresh_token: r.zoho_refresh_token || "",
+              zoho_account_id: r.zoho_account_id || "",
+              zoho_region: r.zoho_region || "com",
             };
           }
         } catch {}
+      }
+
+      if (resolvedChannel.provider_type === "zoho") {
+        if (!resolvedChannel.zoho_client_id || !resolvedChannel.zoho_client_secret || !resolvedChannel.zoho_refresh_token) {
+          return errorResponse("Zoho Client ID, Client Secret, and Refresh Token are required for Zoho dispatch.", 400);
+        }
+
+        const mailPayload = {
+          from: String(from || resolvedChannel.sender_email).trim(),
+          to: recipientList[0],
+          subject: String(subject || "Notification"),
+          html: html,
+          text: plainText,
+          reply_to: rawReplyTo,
+          headers: headers && typeof headers === "object" ? headers : undefined,
+          attachments: attachments && Array.isArray(attachments) ? attachments.map((att: any) => ({
+            filename: att.filename || att.name || "attachment",
+            content: att.content || att.base64Content,
+          })) : undefined,
+        };
+
+        const result = await sendWithZoho(resolvedChannel, mailPayload as any);
+
+        if (!result.success) {
+          try {
+            await runQuery(
+              env,
+              `INSERT INTO neon_logs (id, level, message, task_id, task_name, api_name, recipient, details, created_at)
+               VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, NOW())`,
+              [
+                `log_${Date.now()}`,
+                `Failed sending via Zoho to ${recipientSummary}: ${result.error}`,
+                taskId || null,
+                taskName || null,
+                resolvedChannel.name,
+                recipientSummary,
+                JSON.stringify(result),
+              ],
+            );
+          } catch {}
+          return jsonResponse({
+            success: false,
+            error: result.error || "Failed to send email via Zoho Mail API",
+            provider: "zoho",
+            details: result.details,
+          }, 400);
+        }
+
+        try {
+          await runQuery(
+            env,
+            `INSERT INTO neon_logs (id, level, message, task_id, task_name, api_name, recipient, details, created_at)
+             VALUES ($1, 'success', $2, $3, $4, $5, $6, $7, NOW())`,
+            [
+              `log_${Date.now()}`,
+              `Delivered via Zoho Mail API to ${recipientSummary} [ID: ${result.messageId}]`,
+              taskId || null,
+              taskName || null,
+              resolvedChannel.name,
+              recipientSummary,
+              JSON.stringify({ id: result.messageId, provider: "zoho" }),
+            ],
+          );
+        } catch {}
+
+        return jsonResponse({
+          success: true,
+          id: result.messageId,
+          message: `Delivered successfully via Zoho Mail API (ID: ${result.messageId})`,
+          provider: "zoho",
+        });
       }
 
       if (resolvedChannel.provider_type === "smtp") {
@@ -2832,6 +3022,51 @@ export async function onRequest(context: EventContext): Promise<Response> {
       };
       
       const result = await verifySmtp(channel);
+      return jsonResponse(result, result.success ? 200 : 400);
+    }
+
+    if (method === "POST" && path === "/api/zoho/verify") {
+      const {
+        zohoClientId,
+        zoho_client_id,
+        zohoClientSecret,
+        zoho_client_secret,
+        zohoRefreshToken,
+        zoho_refresh_token,
+        zohoAccountId,
+        zoho_account_id,
+        zohoRegion,
+        zoho_region,
+        senderEmail,
+      } = body;
+
+      const clientId = (zohoClientId || zoho_client_id || "").trim();
+      const clientSecret = (zohoClientSecret || zoho_client_secret || "").trim();
+      const refreshToken = (zohoRefreshToken || zoho_refresh_token || "").trim();
+      const accountId = (zohoAccountId || zoho_account_id || "").trim();
+      const region = (zohoRegion || zoho_region || "com").trim();
+
+      if (!clientId || !clientSecret || !refreshToken) {
+        return jsonResponse({
+          success: false,
+          message: "Client ID, Client Secret, and Refresh Token are required for Zoho Mail verification",
+          error: "MISSING_REQUIRED_FIELDS",
+        }, 400);
+      }
+
+      const channel: EmailChannel = {
+        id: "zoho_probe",
+        name: "Zoho Probe",
+        provider_type: "zoho",
+        sender_email: senderEmail || accountId,
+        zoho_client_id: clientId,
+        zoho_client_secret: clientSecret,
+        zoho_refresh_token: refreshToken,
+        zoho_account_id: accountId,
+        zoho_region: region,
+      };
+
+      const result = await verifyZoho(channel);
       return jsonResponse(result, result.success ? 200 : 400);
     }
 

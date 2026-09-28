@@ -8,11 +8,13 @@ import {
   verifySmtp,
   invalidateTransporter,
 } from "./smtp";
+import { sendWithZoho, verifyZoho } from "./zoho";
 import { EmailChannel, EmailPayload, SendResult, VerifyResult } from "./types";
 
 export * from "./types";
 export * from "./resend";
 export * from "./smtp";
+export * from "./zoho";
 
 /**
  * Unified Dispatcher: Dispatches email through the appropriate provider adapter.
@@ -21,7 +23,11 @@ export async function sendEmailUnified(
   channel: EmailChannel,
   payload: EmailPayload
 ): Promise<SendResult> {
-  const provider = channel.provider_type || (channel.smtp_host ? "smtp" : "resend");
+  const provider = channel.provider_type || (channel.zoho_refresh_token ? "zoho" : channel.smtp_host ? "smtp" : "resend");
+
+  if (provider === "zoho") {
+    return sendWithZoho(channel, payload);
+  }
 
   if (provider === "smtp") {
     return sendWithSmtp(channel, payload);
@@ -34,7 +40,11 @@ export async function sendEmailUnified(
  * Unified Verification: Validates channel credentials and connection health.
  */
 export async function verifyChannel(channel: EmailChannel): Promise<VerifyResult> {
-  const provider = channel.provider_type || (channel.smtp_host ? "smtp" : "resend");
+  const provider = channel.provider_type || (channel.zoho_refresh_token ? "zoho" : channel.smtp_host ? "smtp" : "resend");
+
+  if (provider === "zoho") {
+    return verifyZoho(channel);
+  }
 
   if (provider === "smtp") {
     return verifySmtp(channel);

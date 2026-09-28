@@ -22,15 +22,15 @@ import {
   Activity,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ResendApiKey } from '../../types';
-import { testResendApiKey, sendEmailViaResend, verifySmtpChannelApi } from '../../services/apiService';
+import { ResendApiKey, ProviderType } from '../../types';
+import { testResendApiKey, sendEmailViaResend, verifySmtpChannelApi, verifyZohoChannelApi } from '../../services/apiService';
 
 export const ApisPage: React.FC = () => {
   const { currentUser, apis, addApi, updateApi, deleteApi, getLockedApiIds, addLog, settings } = useApp();
 
   // Connect Modal State
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-  const [connectProviderType, setConnectProviderType] = useState<'resend' | 'smtp'>('resend');
+  const [connectProviderType, setConnectProviderType] = useState<ProviderType>('resend');
   const [apiLabel, setApiLabel] = useState('');
   const [resendKey, setResendKey] = useState('');
   const [senderEmail, setSenderEmail] = useState('');
@@ -46,9 +46,18 @@ export const ApisPage: React.FC = () => {
   const [smtpPass, setSmtpPass] = useState('');
   const [showSmtpPass, setShowSmtpPass] = useState(false);
 
+  // Zoho Connect Form Fields
+  const [zohoClientId, setZohoClientId] = useState('');
+  const [zohoClientSecret, setZohoClientSecret] = useState('');
+  const [zohoRefreshToken, setZohoRefreshToken] = useState('');
+  const [zohoAccountId, setZohoAccountId] = useState('');
+  const [zohoRegion, setZohoRegion] = useState('com');
+  const [showZohoSecret, setShowZohoSecret] = useState(false);
+  const [showZohoRefresh, setShowZohoRefresh] = useState(false);
+
   // Edit Modal State
   const [apiToEdit, setApiToEdit] = useState<ResendApiKey | null>(null);
-  const [editProviderType, setEditProviderType] = useState<'resend' | 'smtp'>('resend');
+  const [editProviderType, setEditProviderType] = useState<ProviderType>('resend');
   const [editLabel, setEditLabel] = useState('');
   const [editKey, setEditKey] = useState('');
   const [editSenderEmail, setEditSenderEmail] = useState('');
@@ -61,6 +70,15 @@ export const ApisPage: React.FC = () => {
   const [editSmtpUser, setEditSmtpUser] = useState('');
   const [editSmtpPass, setEditSmtpPass] = useState('');
   const [showEditSmtpPass, setShowEditSmtpPass] = useState(false);
+
+  // Zoho Edit Form Fields
+  const [editZohoClientId, setEditZohoClientId] = useState('');
+  const [editZohoClientSecret, setEditZohoClientSecret] = useState('');
+  const [editZohoRefreshToken, setEditZohoRefreshToken] = useState('');
+  const [editZohoAccountId, setEditZohoAccountId] = useState('');
+  const [editZohoRegion, setEditZohoRegion] = useState('com');
+  const [showEditZohoSecret, setShowEditZohoSecret] = useState(false);
+  const [showEditZohoRefresh, setShowEditZohoRefresh] = useState(false);
   const [editTestResult, setEditTestResult] = useState<{
     tested: boolean;
     valid: boolean;
@@ -157,7 +175,38 @@ export const ApisPage: React.FC = () => {
     setModalTestResult(null);
 
     try {
-      if (connectProviderType === 'smtp') {
+      if (connectProviderType === 'zoho') {
+        if (!zohoClientId.trim() || !zohoClientSecret.trim() || !zohoRefreshToken.trim()) {
+          setModalTestResult({
+            tested: true,
+            valid: false,
+            message: 'Please provide Client ID, Client Secret, and Refresh Token.',
+          });
+          return;
+        }
+
+        const res = await verifyZohoChannelApi({
+          zohoClientId: zohoClientId.trim(),
+          zohoClientSecret: zohoClientSecret.trim(),
+          zohoRefreshToken: zohoRefreshToken.trim(),
+          zohoAccountId: zohoAccountId.trim() || undefined,
+          zohoRegion: zohoRegion || 'com',
+          senderEmail: senderEmail.trim() || zohoAccountId.trim(),
+        });
+
+        setModalTestResult({
+          tested: true,
+          valid: res.success,
+          message: res.message,
+          error: res.error,
+          details: res.details,
+          verifiedDomains: res.details?.verifiedEmails || [],
+        });
+
+        if (res.success && res.details?.primaryEmail && !senderEmail) {
+          setSenderEmail(res.details.primaryEmail);
+        }
+      } else if (connectProviderType === 'smtp') {
         if (!smtpHost.trim() || !smtpUser.trim()) {
           setModalTestResult({
             tested: true,
@@ -227,7 +276,12 @@ export const ApisPage: React.FC = () => {
       return;
     }
 
-    if (connectProviderType === 'smtp') {
+    if (connectProviderType === 'zoho') {
+      if (!zohoClientId.trim() || !zohoClientSecret.trim() || !zohoRefreshToken.trim()) {
+        alert('Please fill in Client ID, Client Secret, and Refresh Token for Zoho Mail.');
+        return;
+      }
+    } else if (connectProviderType === 'smtp') {
       if (!smtpHost.trim() || !smtpUser.trim()) {
         alert('Please fill in both SMTP Host and Username.');
         return;
@@ -239,7 +293,7 @@ export const ApisPage: React.FC = () => {
       }
     }
 
-    const cleanSender = senderEmail.trim() || (connectProviderType === 'smtp' ? smtpUser.trim() : '');
+    const cleanSender = senderEmail.trim() || (connectProviderType === 'smtp' ? smtpUser.trim() : (connectProviderType === 'zoho' ? zohoAccountId.trim() : ''));
     if (!cleanSender || (connectProviderType === 'resend' && cleanSender.toLowerCase().includes('resend.dev'))) {
       alert('DMARC Guard: Please enter a valid Sender Email on your authenticated domain (e.g. mail@yourdomain.com). "onboarding@resend.dev" is prohibited to prevent DMARC alignment failure and spam drops.');
       return;
@@ -263,6 +317,11 @@ export const ApisPage: React.FC = () => {
         smtpSecure: connectProviderType === 'smtp' ? smtpSecure : undefined,
         smtpUser: connectProviderType === 'smtp' ? smtpUser.trim() : undefined,
         smtpPass: connectProviderType === 'smtp' ? smtpPass : undefined,
+        zohoClientId: connectProviderType === 'zoho' ? zohoClientId.trim() : undefined,
+        zohoClientSecret: connectProviderType === 'zoho' ? zohoClientSecret.trim() : undefined,
+        zohoRefreshToken: connectProviderType === 'zoho' ? zohoRefreshToken.trim() : undefined,
+        zohoAccountId: connectProviderType === 'zoho' ? (zohoAccountId.trim() || cleanSender) : undefined,
+        zohoRegion: connectProviderType === 'zoho' ? (zohoRegion || 'com') : undefined,
       });
 
       setApiLabel('');
@@ -273,6 +332,11 @@ export const ApisPage: React.FC = () => {
       setSmtpSecure(false);
       setSmtpUser('');
       setSmtpPass('');
+      setZohoClientId('');
+      setZohoClientSecret('');
+      setZohoRefreshToken('');
+      setZohoAccountId('');
+      setZohoRegion('com');
       setModalTestResult(null);
       setIsConnectModalOpen(false);
     } catch (err: any) {
@@ -287,7 +351,34 @@ export const ApisPage: React.FC = () => {
     setEditTestResult(null);
 
     try {
-      if (editProviderType === 'smtp') {
+      if (editProviderType === 'zoho') {
+        if (!editZohoClientId.trim() || !editZohoClientSecret.trim() || !editZohoRefreshToken.trim()) {
+          setEditTestResult({
+            tested: true,
+            valid: false,
+            message: 'Please provide Client ID, Client Secret, and Refresh Token.',
+          });
+          return;
+        }
+
+        const res = await verifyZohoChannelApi({
+          zohoClientId: editZohoClientId.trim(),
+          zohoClientSecret: editZohoClientSecret.trim(),
+          zohoRefreshToken: editZohoRefreshToken.trim(),
+          zohoAccountId: editZohoAccountId.trim() || undefined,
+          zohoRegion: editZohoRegion || 'com',
+          senderEmail: editSenderEmail.trim() || editZohoAccountId.trim(),
+        });
+
+        setEditTestResult({
+          tested: true,
+          valid: res.success,
+          message: res.message,
+          error: res.error,
+          details: res.details,
+          verifiedDomains: res.details?.verifiedEmails || [],
+        });
+      } else if (editProviderType === 'smtp') {
         if (!editSmtpHost.trim() || !editSmtpUser.trim()) {
           setEditTestResult({
             tested: true,
@@ -354,7 +445,12 @@ export const ApisPage: React.FC = () => {
       return;
     }
 
-    if (editProviderType === 'smtp') {
+    if (editProviderType === 'zoho') {
+      if (!editZohoClientId.trim() || !editZohoClientSecret.trim() || !editZohoRefreshToken.trim()) {
+        alert('Please fill in Client ID, Client Secret, and Refresh Token for Zoho Mail.');
+        return;
+      }
+    } else if (editProviderType === 'smtp') {
       if (!editSmtpHost.trim() || !editSmtpUser.trim()) {
         alert('Please fill in both SMTP Host and Username.');
         return;
@@ -366,7 +462,7 @@ export const ApisPage: React.FC = () => {
       }
     }
 
-    const cleanSender = editSenderEmail.trim() || (editProviderType === 'smtp' ? editSmtpUser.trim() : '');
+    const cleanSender = editSenderEmail.trim() || (editProviderType === 'smtp' ? editSmtpUser.trim() : (editProviderType === 'zoho' ? editZohoAccountId.trim() : ''));
     if (!cleanSender || (editProviderType === 'resend' && cleanSender.toLowerCase().includes('resend.dev'))) {
       alert('DMARC Guard: Please enter a valid Sender Email on your authenticated domain (e.g. mail@yourdomain.com). "onboarding@resend.dev" is prohibited to prevent DMARC alignment failure and spam drops.');
       return;
@@ -386,6 +482,11 @@ export const ApisPage: React.FC = () => {
         smtpSecure: editProviderType === 'smtp' ? editSmtpSecure : undefined,
         smtpUser: editProviderType === 'smtp' ? editSmtpUser.trim() : undefined,
         smtpPass: editProviderType === 'smtp' ? editSmtpPass : undefined,
+        zohoClientId: editProviderType === 'zoho' ? editZohoClientId.trim() : undefined,
+        zohoClientSecret: editProviderType === 'zoho' ? editZohoClientSecret.trim() : undefined,
+        zohoRefreshToken: editProviderType === 'zoho' ? editZohoRefreshToken.trim() : undefined,
+        zohoAccountId: editProviderType === 'zoho' ? (editZohoAccountId.trim() || cleanSender) : undefined,
+        zohoRegion: editProviderType === 'zoho' ? (editZohoRegion || 'com') : undefined,
         status: editTestResult?.tested
           ? (editTestResult.valid ? 'active' : 'error')
           : apiToEdit.status,
@@ -402,9 +503,23 @@ export const ApisPage: React.FC = () => {
 
   const handleReTestSingle = async (api: ResendApiKey) => {
     setReTestingId(api.id);
-    const isSmtp = (api.providerType || api.provider_type) === 'smtp' || Boolean(api.smtpHost || api.smtp_host);
+    const provider = api.providerType || api.provider_type || (api.zohoRefreshToken || api.zoho_refresh_token ? 'zoho' : api.smtpHost || api.smtp_host ? 'smtp' : 'resend');
     try {
-      if (isSmtp) {
+      if (provider === 'zoho') {
+        const res = await verifyZohoChannelApi({
+          zohoClientId: api.zohoClientId || api.zoho_client_id || '',
+          zohoClientSecret: api.zohoClientSecret || api.zoho_client_secret || '',
+          zohoRefreshToken: api.zohoRefreshToken || api.zoho_refresh_token || '',
+          zohoAccountId: api.zohoAccountId || api.zoho_account_id,
+          zohoRegion: api.zohoRegion || api.zoho_region || 'com',
+          senderEmail: api.senderEmail,
+        });
+        updateApi(api.id, {
+          status: res.success ? 'active' : 'error',
+          lastTested: 'Just now',
+          testStatusMsg: res.message,
+        });
+      } else if (provider === 'smtp') {
         const res = await verifySmtpChannelApi({
           smtpHost: api.smtpHost || api.smtp_host || '',
           smtpPort: Number(api.smtpPort || api.smtp_port) || 587,
@@ -448,7 +563,7 @@ export const ApisPage: React.FC = () => {
     setIsSendingLiveTest(true);
     setLiveTestFeedback(null);
 
-    const isSmtp = (testSendModalApi.providerType || testSendModalApi.provider_type) === 'smtp' || Boolean(testSendModalApi.smtpHost || testSendModalApi.smtp_host);
+    const provider = testSendModalApi.providerType || testSendModalApi.provider_type || (testSendModalApi.zohoRefreshToken || testSendModalApi.zoho_refresh_token ? 'zoho' : testSendModalApi.smtpHost || testSendModalApi.smtp_host ? 'smtp' : 'resend');
 
     try {
       const res = await sendEmailViaResend({
@@ -458,8 +573,8 @@ export const ApisPage: React.FC = () => {
         from: `${testSendModalApi.name} <${testSendModalApi.senderEmail}>`,
         to: testRecipient.trim(),
         subject: testSubject.trim() || `✨ Real Email Test from ${settings.siteName || 'R Sender'}`,
-        providerType: isSmtp ? 'smtp' : 'resend',
-        provider_type: isSmtp ? 'smtp' : 'resend',
+        providerType: provider,
+        provider_type: provider,
         smtpHost: testSendModalApi.smtpHost || testSendModalApi.smtp_host,
         smtp_host: testSendModalApi.smtp_host || testSendModalApi.smtpHost,
         smtpPort: testSendModalApi.smtpPort ?? testSendModalApi.smtp_port,
@@ -470,6 +585,16 @@ export const ApisPage: React.FC = () => {
         smtp_user: testSendModalApi.smtpUser || testSendModalApi.smtp_user,
         smtpPass: testSendModalApi.smtpPass || testSendModalApi.smtp_pass,
         smtp_pass: testSendModalApi.smtp_pass || testSendModalApi.smtpPass,
+        zohoClientId: testSendModalApi.zohoClientId || testSendModalApi.zoho_client_id,
+        zoho_client_id: testSendModalApi.zoho_client_id || testSendModalApi.zohoClientId,
+        zohoClientSecret: testSendModalApi.zohoClientSecret || testSendModalApi.zoho_client_secret,
+        zoho_client_secret: testSendModalApi.zoho_client_secret || testSendModalApi.zohoClientSecret,
+        zohoRefreshToken: testSendModalApi.zohoRefreshToken || testSendModalApi.zoho_refresh_token,
+        zoho_refresh_token: testSendModalApi.zoho_refresh_token || testSendModalApi.zohoRefreshToken,
+        zohoAccountId: testSendModalApi.zohoAccountId || testSendModalApi.zoho_account_id,
+        zoho_account_id: testSendModalApi.zoho_account_id || testSendModalApi.zohoAccountId,
+        zohoRegion: testSendModalApi.zohoRegion || testSendModalApi.zoho_region,
+        zoho_region: testSendModalApi.zoho_region || testSendModalApi.zohoRegion,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 10px; background-color: #ffffff; color: #1e293b;">
             <div style="display: flex; align-items: center; margin-bottom: 16px;">
@@ -477,10 +602,10 @@ export const ApisPage: React.FC = () => {
               <h2 style="margin: 0; color: #0f172a; font-size: 20px;">${settings.siteName || 'R Sender'} Delivery Verification</h2>
             </div>
             <p style="font-size: 15px; line-height: 1.6; color: #334155;">
-              Congratulations! This email was dispatched in real-time through your configured ${isSmtp ? 'SMTP channel' : 'Resend API key'}:
+              Congratulations! This email was dispatched in real-time through your configured ${provider === 'zoho' ? 'Zoho Mail REST API channel' : provider === 'smtp' ? 'SMTP relay channel' : 'Resend API key'}:
             </p>
             <div style="background-color: #f1f5f9; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 13px; color: #0f172a; margin: 16px 0;">
-              <strong>Channel:</strong> ${testSendModalApi.name} [${isSmtp ? 'SMTP' : 'RESEND'}]<br />
+              <strong>Channel:</strong> ${testSendModalApi.name} [${provider.toUpperCase()}]<br />
               <strong>Sender:</strong> ${testSendModalApi.senderEmail}<br />
               <strong>Recipient:</strong> ${testRecipient}<br />
               <strong>Timestamp:</strong> ${new Date().toISOString()}
@@ -490,7 +615,7 @@ export const ApisPage: React.FC = () => {
             </p>
           </div>
         `,
-        text: `${settings.siteName || 'R Sender'} Delivery Verification!\n\nThis email was dispatched in real-time through your configured ${isSmtp ? 'SMTP channel' : 'Resend API key'}: ${testSendModalApi.name} (${testSendModalApi.senderEmail}).\n\nRecipient: ${testRecipient}\nTime: ${new Date().toLocaleString()}`,
+        text: `${settings.siteName || 'R Sender'} Delivery Verification!\n\nThis email was dispatched in real-time through your configured ${provider.toUpperCase()} channel: ${testSendModalApi.name} (${testSendModalApi.senderEmail}).\n\nRecipient: ${testRecipient}\nTime: ${new Date().toLocaleString()}`,
         apiName: testSendModalApi.name,
       });
 
@@ -511,7 +636,7 @@ export const ApisPage: React.FC = () => {
           level: 'success',
           apiName: testSendModalApi.name,
           recipient: testRecipient,
-          message: `Live test email delivered to ${testRecipient} via ${isSmtp ? 'SMTP' : 'Resend'} (ID: ${res.id})`,
+          message: `Live test email delivered to ${testRecipient} via ${provider.toUpperCase()} (ID: ${res.id})`,
         });
       } else {
         setLiveTestFeedback({
@@ -710,7 +835,8 @@ export const ApisPage: React.FC = () => {
                   const isRetesting = reTestingId === item.id;
                   const isActive = item.status === 'active' || item.status === 'sending_only';
                   const usagePercent = Math.min(100, Math.round(((item.usedToday || 0) / item.dailyLimit) * 100));
-                  const isSmtp = (item.providerType || item.provider_type) === 'smtp' || Boolean(item.smtpHost || item.smtp_host);
+                  const isZoho = (item.providerType || item.provider_type) === 'zoho' || Boolean(item.zohoRefreshToken || item.zoho_refresh_token);
+                  const isSmtp = !isZoho && ((item.providerType || item.provider_type) === 'smtp' || Boolean(item.smtpHost || item.smtp_host));
 
                   return (
                     <tr key={item.id} className="hover:bg-[#1a2234]/35 transition-colors">
@@ -738,18 +864,38 @@ export const ApisPage: React.FC = () => {
                       <td className="py-[7px] px-3 whitespace-nowrap align-middle">
                         <span
                           className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-semibold uppercase tracking-wider ${
-                            isSmtp
+                            isZoho
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : isSmtp
                               ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                               : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
                           }`}
                         >
-                          {isSmtp ? 'SMTP' : 'RESEND'}
+                          {isZoho ? 'ZOHO' : isSmtp ? 'SMTP' : 'RESEND'}
                         </span>
                       </td>
 
                       {/* Credentials / Endpoint */}
                       <td className="py-[7px] px-3 whitespace-nowrap align-middle">
-                        {isSmtp ? (
+                        {isZoho ? (
+                          <div className="bg-[#1a2234] border border-[#1e293b] py-[3px] px-1.5 rounded-[4px] inline-flex items-center gap-1.5 font-mono text-[10.5px] text-[#cbd5e1]">
+                            <span className="truncate max-w-[140px]" title={`Zoho Mail (${item.zohoRegion || item.zoho_region || 'com'})`}>
+                              zoho.{item.zohoRegion || item.zoho_region || 'com'}:{item.zohoAccountId || item.zoho_account_id || 'oauth'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(item.id, `zoho.${item.zohoRegion || item.zoho_region || 'com'}`)}
+                              className="bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer flex items-center p-0"
+                              title="Copy Zoho domain"
+                            >
+                              {copiedId === item.id ? (
+                                <Check className="w-3 h-3 text-[#10b981]" />
+                              ) : (
+                                <Copy className="w-3 h-3 text-[#94a3b8] hover:text-[#f8fafc]" />
+                              )}
+                            </button>
+                          </div>
+                        ) : isSmtp ? (
                           <div className="bg-[#1a2234] border border-[#1e293b] py-[3px] px-1.5 rounded-[4px] inline-flex items-center gap-1.5 font-mono text-[10.5px] text-[#cbd5e1]">
                             <span className="truncate max-w-[140px]" title={`${item.smtpHost || item.smtp_host}:${item.smtpPort || item.smtp_port || 587}`}>
                               {item.smtpHost || item.smtp_host || 'smtp'}:{item.smtpPort || item.smtp_port || 587}
@@ -864,8 +1010,9 @@ export const ApisPage: React.FC = () => {
                             onClick={() => {
                               setApiToEdit(item);
                               setEditLabel(item.name);
-                              const itemIsSmtp = (item.providerType || item.provider_type) === 'smtp' || Boolean(item.smtpHost || item.smtp_host);
-                              setEditProviderType(itemIsSmtp ? 'smtp' : 'resend');
+                              const itemIsZoho = (item.providerType || item.provider_type) === 'zoho' || Boolean(item.zohoRefreshToken || item.zoho_refresh_token);
+                              const itemIsSmtp = !itemIsZoho && ((item.providerType || item.provider_type) === 'smtp' || Boolean(item.smtpHost || item.smtp_host));
+                              setEditProviderType(itemIsZoho ? 'zoho' : itemIsSmtp ? 'smtp' : 'resend');
                               setEditKey(item.key || '');
                               setEditSenderEmail(item.senderEmail);
                               setEditDailyLimit(item.dailyLimit || 1000);
@@ -874,6 +1021,11 @@ export const ApisPage: React.FC = () => {
                               setEditSmtpSecure(item.smtpSecure !== undefined ? Boolean(item.smtpSecure) : Boolean(item.smtp_secure));
                               setEditSmtpUser(item.smtpUser || item.smtp_user || '');
                               setEditSmtpPass(item.smtpPass || item.smtp_pass || '');
+                              setEditZohoClientId(item.zohoClientId || item.zoho_client_id || '');
+                              setEditZohoClientSecret(item.zohoClientSecret || item.zoho_client_secret || '');
+                              setEditZohoRefreshToken(item.zohoRefreshToken || item.zoho_refresh_token || '');
+                              setEditZohoAccountId(item.zohoAccountId || item.zoho_account_id || '');
+                              setEditZohoRegion(item.zohoRegion || item.zoho_region || 'com');
                               setEditTestResult(null);
                             }}
                             className="bg-[#1a2234] border border-[#1e293b] hover:border-[#334155] hover:bg-[#222d42] text-[#38bdf8] py-[3px] px-[7px] rounded-[4px] text-[10.5px] font-medium cursor-pointer inline-flex items-center gap-1 transition-all"
@@ -968,13 +1120,14 @@ export const ApisPage: React.FC = () => {
                     <select
                       value={connectProviderType}
                       onChange={(e) => {
-                        setConnectProviderType(e.target.value as 'resend' | 'smtp');
+                        setConnectProviderType(e.target.value as ProviderType);
                         setModalTestResult(null);
                       }}
                       className="w-full bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[7px_10px] rounded-[6px] text-[12px] font-medium outline-none transition-all focus:border-[#8b5cf6] focus:ring-1 focus:ring-[#8b5cf6]/40 cursor-pointer appearance-none pr-8"
                     >
                       <option value="resend">Resend API</option>
                       <option value="smtp">Custom SMTP Relay</option>
+                      <option value="zoho">Zoho Mail API (OAuth 2.0)</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] flex items-center">
                       <ChevronDown className="w-3.5 h-3.5" />
@@ -991,7 +1144,7 @@ export const ApisPage: React.FC = () => {
                     <input
                       type="text"
                       required
-                      placeholder={connectProviderType === 'resend' ? 'e.g. Primary Resend' : 'e.g. Google Relay'}
+                      placeholder={connectProviderType === 'zoho' ? 'e.g. Zoho Business Mail' : connectProviderType === 'resend' ? 'e.g. Primary Resend' : 'e.g. Google Relay'}
                       value={apiLabel}
                       onChange={(e) => setApiLabel(e.target.value)}
                       className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[7px_10px] rounded-[6px] text-[12px] outline-none transition-all focus:border-[#8b5cf6] focus:ring-1 focus:ring-[#8b5cf6]/40 w-full placeholder-[#475569]"
@@ -1014,7 +1167,140 @@ export const ApisPage: React.FC = () => {
                 </div>
 
                 {/* 3. Provider Credentials */}
-                {connectProviderType === 'resend' ? (
+                {connectProviderType === 'zoho' ? (
+                  /* ZOHO MAIL REST API OAUTH FIELDS */
+                  <div className="flex flex-col gap-2.5 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-semibold text-[#34d399] flex items-center gap-1">
+                        <Key className="w-3 h-3 text-[#10b981]" /> Zoho Mail OAuth 2.0 Credentials
+                      </span>
+                      <a
+                        href="https://api-console.zoho.com"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#38bdf8] hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>Zoho API Console</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+
+                    {/* Data Center Region */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Data Center Region <span className="text-[#8b5cf6]">*</span>
+                      </label>
+                      <select
+                        value={zohoRegion}
+                        onChange={(e) => {
+                          setZohoRegion(e.target.value);
+                          setModalTestResult(null);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] cursor-pointer"
+                      >
+                        <option value="com">United States / Global (.com)</option>
+                        <option value="eu">Europe (.eu)</option>
+                        <option value="in">India (.in)</option>
+                        <option value="com.au">Australia (.com.au)</option>
+                        <option value="jp">Japan (.jp)</option>
+                        <option value="ca">Canada (.ca)</option>
+                        <option value="com.cn">China (.com.cn)</option>
+                      </select>
+                    </div>
+
+                    {/* Client ID */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Zoho Client ID <span className="text-[#8b5cf6]">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={connectProviderType === 'zoho'}
+                        placeholder="1000.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                        value={zohoClientId}
+                        onChange={(e) => {
+                          setZohoClientId(e.target.value);
+                          setModalTestResult(null);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
+                      />
+                    </div>
+
+                    {/* Client Secret */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Zoho Client Secret <span className="text-[#8b5cf6]">*</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showZohoSecret ? 'text' : 'password'}
+                          required={connectProviderType === 'zoho'}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          value={zohoClientSecret}
+                          onChange={(e) => {
+                            setZohoClientSecret(e.target.value);
+                            setModalTestResult(null);
+                          }}
+                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowZohoSecret(!showZohoSecret)}
+                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
+                          title="Show/Hide Secret"
+                        >
+                          {showZohoSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Refresh Token */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
+                        <span>Zoho Refresh Token <span className="text-[#8b5cf6]">*</span></span>
+                        <span className="text-[9.5px] text-slate-400 font-mono">Scope: ZohoMail.messages.CREATE,ZohoMail.accounts.READ</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showZohoRefresh ? 'text' : 'password'}
+                          required={connectProviderType === 'zoho'}
+                          placeholder="1000.••••••••••••••••••••••••••••••••"
+                          value={zohoRefreshToken}
+                          onChange={(e) => {
+                            setZohoRefreshToken(e.target.value);
+                            setModalTestResult(null);
+                          }}
+                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowZohoRefresh(!showZohoRefresh)}
+                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
+                          title="Show/Hide Refresh Token"
+                        >
+                          {showZohoRefresh ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Account ID / Email (Optional) */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between">
+                        <span>Account ID / Primary Email <span className="text-slate-400 font-normal">(Optional, auto-detected)</span></span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. sender@zoho.com (or leave empty to auto-detect)"
+                        value={zohoAccountId}
+                        onChange={(e) => {
+                          setZohoAccountId(e.target.value);
+                          if (!senderEmail) setSenderEmail(e.target.value);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
+                      />
+                    </div>
+                  </div>
+                ) : connectProviderType === 'resend' ? (
                   /* RESEND API KEY FIELD */
                   <div className="flex flex-col gap-1 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
                     <div className="text-[11px] font-semibold text-[#cbd5e1] flex justify-between items-center">
@@ -1317,7 +1603,14 @@ export const ApisPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleTestConnectKey}
-                  disabled={isModalTesting || (connectProviderType === 'resend' ? !resendKey.trim() : (!smtpHost.trim() || !smtpUser.trim()))}
+                  disabled={
+                    isModalTesting ||
+                    (connectProviderType === 'zoho'
+                      ? (!zohoClientId.trim() || !zohoClientSecret.trim() || !zohoRefreshToken.trim())
+                      : connectProviderType === 'resend'
+                      ? !resendKey.trim()
+                      : (!smtpHost.trim() || !smtpUser.trim()))
+                  }
                   className="bg-[#1a2234] border border-[#1e293b] hover:border-[#8b5cf6]/50 text-[#f8fafc] hover:bg-[#222d42] p-[5px_11px] rounded-[5px] text-[11.5px] font-medium cursor-pointer transition-colors disabled:opacity-40 flex items-center gap-1.5"
                 >
                   Test Connection
@@ -1389,13 +1682,14 @@ export const ApisPage: React.FC = () => {
                     <select
                       value={editProviderType}
                       onChange={(e) => {
-                        setEditProviderType(e.target.value as 'resend' | 'smtp');
+                        setEditProviderType(e.target.value as 'resend' | 'smtp' | 'zoho');
                         setEditTestResult(null);
                       }}
                       className="w-full bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[7px_10px] rounded-[6px] text-[12px] font-medium outline-none transition-all focus:border-[#8b5cf6] cursor-pointer appearance-none pr-8"
                     >
                       <option value="resend">Resend API</option>
                       <option value="smtp">Custom SMTP Relay</option>
+                      <option value="zoho">Zoho Mail (Auth API / OAuth 2.0)</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] flex items-center">
                       <ChevronDown className="w-3.5 h-3.5" />
@@ -1434,7 +1728,126 @@ export const ApisPage: React.FC = () => {
                 </div>
 
                 {/* 3. Provider Credentials */}
-                {editProviderType === 'resend' ? (
+                {editProviderType === 'zoho' ? (
+                  /* ZOHO OAUTH / AUTH API FIELDS */
+                  <div className="flex flex-col gap-2 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
+                    {/* Zoho Data Center / Region */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
+                        <span>Zoho Data Center (Region) <span className="text-[#8b5cf6]">*</span></span>
+                        <span className="text-[9.5px] text-[#38bdf8] font-mono">OAuth 2.0 Token API</span>
+                      </label>
+                      <select
+                        value={editZohoRegion}
+                        onChange={(e) => {
+                          setEditZohoRegion(e.target.value);
+                          setEditTestResult(null);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] cursor-pointer"
+                      >
+                        <option value="com">United States / Global (.com)</option>
+                        <option value="eu">Europe (.eu)</option>
+                        <option value="in">India (.in)</option>
+                        <option value="com.au">Australia (.com.au)</option>
+                        <option value="jp">Japan (.jp)</option>
+                        <option value="ca">Canada (.ca)</option>
+                        <option value="com.cn">China (.com.cn)</option>
+                      </select>
+                    </div>
+
+                    {/* Client ID */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Zoho Client ID <span className="text-[#8b5cf6]">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required={editProviderType === 'zoho'}
+                        placeholder="1000.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                        value={editZohoClientId}
+                        onChange={(e) => {
+                          setEditZohoClientId(e.target.value);
+                          setEditTestResult(null);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
+                      />
+                    </div>
+
+                    {/* Client Secret */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Zoho Client Secret <span className="text-[#8b5cf6]">*</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showEditZohoSecret ? 'text' : 'password'}
+                          required={editProviderType === 'zoho'}
+                          placeholder="••••••••••••••••••••••••••••••••"
+                          value={editZohoClientSecret}
+                          onChange={(e) => {
+                            setEditZohoClientSecret(e.target.value);
+                            setEditTestResult(null);
+                          }}
+                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditZohoSecret(!showEditZohoSecret)}
+                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
+                          title="Show/Hide Secret"
+                        >
+                          {showEditZohoSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Refresh Token */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
+                        <span>Zoho Refresh Token <span className="text-[#8b5cf6]">*</span></span>
+                        <span className="text-[9.5px] text-slate-400 font-mono">Scope: ZohoMail.messages.CREATE,ZohoMail.accounts.READ</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showEditZohoRefresh ? 'text' : 'password'}
+                          required={editProviderType === 'zoho'}
+                          placeholder="1000.••••••••••••••••••••••••••••••••"
+                          value={editZohoRefreshToken}
+                          onChange={(e) => {
+                            setEditZohoRefreshToken(e.target.value);
+                            setEditTestResult(null);
+                          }}
+                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditZohoRefresh(!showEditZohoRefresh)}
+                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
+                          title="Show/Hide Refresh Token"
+                        >
+                          {showEditZohoRefresh ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Account ID / Email (Optional) */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Account ID / Primary Email <span className="text-slate-400 font-normal">(Optional, auto-detected)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. sender@zoho.com"
+                        value={editZohoAccountId}
+                        onChange={(e) => {
+                          setEditZohoAccountId(e.target.value);
+                          if (!editSenderEmail) setEditSenderEmail(e.target.value);
+                        }}
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
+                      />
+                    </div>
+                  </div>
+                ) : editProviderType === 'resend' ? (
                   <div className="flex flex-col gap-1 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
                     <div className="text-[11px] font-semibold text-[#cbd5e1] flex justify-between items-center">
                       <span>Resend API Key <span className="text-[#8b5cf6]">*</span></span>
@@ -1725,7 +2138,14 @@ export const ApisPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleTestEditKey}
-                  disabled={isEditTesting || (editProviderType === 'resend' ? !editKey.trim() : (!editSmtpHost.trim() || !editSmtpUser.trim()))}
+                  disabled={
+                    isEditTesting ||
+                    (editProviderType === 'zoho'
+                      ? (!editZohoClientId.trim() || !editZohoClientSecret.trim() || !editZohoRefreshToken.trim())
+                      : editProviderType === 'resend'
+                      ? !editKey.trim()
+                      : (!editSmtpHost.trim() || !editSmtpUser.trim()))
+                  }
                   className="bg-[#1a2234] border border-[#1e293b] hover:border-[#8b5cf6]/50 text-[#f8fafc] hover:bg-[#222d42] p-[5px_11px] rounded-[5px] text-[11.5px] font-medium cursor-pointer transition-colors disabled:opacity-40 flex items-center gap-1.5"
                 >
                   Test Connection

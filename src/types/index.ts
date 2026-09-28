@@ -1,4 +1,4 @@
-export type ProviderType = "resend" | "smtp";
+export type ProviderType = "resend" | "smtp" | "zoho";
 
 export interface ResendApiKey {
   id: string;
@@ -28,6 +28,18 @@ export interface ResendApiKey {
   smtp_user?: string;
   smtpPass?: string;
   smtp_pass?: string;
+
+  // Zoho Mail API configuration
+  zohoClientId?: string;
+  zoho_client_id?: string;
+  zohoClientSecret?: string;
+  zoho_client_secret?: string;
+  zohoRefreshToken?: string;
+  zoho_refresh_token?: string;
+  zohoAccountId?: string;
+  zoho_account_id?: string;
+  zohoRegion?: string;
+  zoho_region?: string;
 }
 
 export type SenderChannel = ResendApiKey;

@@ -50,8 +50,8 @@ export interface SendEmailPayload {
   apiName?: string;
 
   // Custom SMTP Channel fields
-  providerType?: "resend" | "smtp";
-  provider_type?: "resend" | "smtp";
+  providerType?: "resend" | "smtp" | "zoho";
+  provider_type?: "resend" | "smtp" | "zoho";
   smtpHost?: string;
   smtp_host?: string;
   smtpPort?: number;
@@ -62,6 +62,18 @@ export interface SendEmailPayload {
   smtp_user?: string;
   smtpPass?: string;
   smtp_pass?: string;
+
+  // Zoho Mail API Channel fields
+  zohoClientId?: string;
+  zoho_client_id?: string;
+  zohoClientSecret?: string;
+  zoho_client_secret?: string;
+  zohoRefreshToken?: string;
+  zoho_refresh_token?: string;
+  zohoAccountId?: string;
+  zoho_account_id?: string;
+  zohoRegion?: string;
+  zoho_region?: string;
 
   // Anti-phishing & Tracking flags
   trackOpens?: boolean;
@@ -76,7 +88,7 @@ export interface SendEmailResult {
   message?: string;
   error?: string;
   simulated?: boolean;
-  provider?: "resend" | "smtp";
+  provider?: "resend" | "smtp" | "zoho";
 }
 
 export interface NeonHealthResponse {
@@ -248,6 +260,16 @@ export async function fetchApisFromDb(userId?: string): Promise<ResendApiKey[]> 
     smtp_user: r.smtp_user || r.smtpUser || "",
     smtpPass: r.smtpPass || r.smtp_pass || "",
     smtp_pass: r.smtp_pass || r.smtpPass || "",
+    zohoClientId: r.zohoClientId || r.zoho_client_id || "",
+    zoho_client_id: r.zoho_client_id || r.zohoClientId || "",
+    zohoClientSecret: r.zohoClientSecret || r.zoho_client_secret || "",
+    zoho_client_secret: r.zoho_client_secret || r.zohoClientSecret || "",
+    zohoRefreshToken: r.zohoRefreshToken || r.zoho_refresh_token || "",
+    zoho_refresh_token: r.zoho_refresh_token || r.zohoRefreshToken || "",
+    zohoAccountId: r.zohoAccountId || r.zoho_account_id || "",
+    zoho_account_id: r.zoho_account_id || r.zohoAccountId || "",
+    zohoRegion: r.zohoRegion || r.zoho_region || "com",
+    zoho_region: r.zoho_region || r.zohoRegion || "com",
     createdAt: r.createdAt || r.created_at || "",
   }));
 }
@@ -289,6 +311,16 @@ export async function createApiInDb(api: Partial<ResendApiKey>): Promise<ResendA
     smtp_user: r.smtp_user || r.smtpUser || api.smtp_user || "",
     smtpPass: r.smtpPass || r.smtp_pass || api.smtpPass || "",
     smtp_pass: r.smtp_pass || r.smtpPass || api.smtp_pass || "",
+    zohoClientId: r.zohoClientId || r.zoho_client_id || api.zohoClientId || api.zoho_client_id || "",
+    zoho_client_id: r.zoho_client_id || r.zohoClientId || api.zoho_client_id || api.zohoClientId || "",
+    zohoClientSecret: r.zohoClientSecret || r.zoho_client_secret || api.zohoClientSecret || api.zoho_client_secret || "",
+    zoho_client_secret: r.zoho_client_secret || r.zohoClientSecret || api.zoho_client_secret || api.zohoClientSecret || "",
+    zohoRefreshToken: r.zohoRefreshToken || r.zoho_refresh_token || api.zohoRefreshToken || api.zoho_refresh_token || "",
+    zoho_refresh_token: r.zoho_refresh_token || r.zohoRefreshToken || api.zoho_refresh_token || api.zohoRefreshToken || "",
+    zohoAccountId: r.zohoAccountId || r.zoho_account_id || api.zohoAccountId || api.zoho_account_id || "",
+    zoho_account_id: r.zoho_account_id || r.zohoAccountId || api.zoho_account_id || api.zohoAccountId || "",
+    zohoRegion: r.zohoRegion || r.zoho_region || api.zohoRegion || api.zoho_region || "com",
+    zoho_region: r.zoho_region || r.zohoRegion || api.zoho_region || api.zohoRegion || "com",
     createdAt: r.createdAt || r.created_at || new Date().toISOString().split("T")[0],
   };
 }
@@ -322,6 +354,40 @@ export async function verifySmtpChannelApi(config: {
   return {
     success: data.success === true,
     message: data.message || (data.success ? "SMTP connection successful" : (data.error || result.error || "SMTP verification failed")),
+    error: data.error || (data.success ? undefined : result.error),
+    details: data.details || (data.error || result.error ? { errorMsg: data.error || result.error } : null),
+  };
+}
+
+export async function verifyZohoChannelApi(config: {
+  zohoClientId: string;
+  zohoClientSecret: string;
+  zohoRefreshToken: string;
+  zohoAccountId?: string;
+  zohoRegion?: string;
+  senderEmail?: string;
+}): Promise<{ success: boolean; message: string; error?: string; details?: any }> {
+  const result = await safeJsonFetch<any>(
+    "/api/zoho/verify",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    },
+    "/api/zoho/verify"
+  );
+  if (!result.data) {
+    return {
+      success: false,
+      message: result.error || "Failed to reach Zoho verification endpoint",
+      error: result.error,
+      details: null,
+    };
+  }
+  const data = result.data;
+  return {
+    success: data.success === true,
+    message: data.message || (data.success ? "Zoho Mail connection successful" : (data.error || result.error || "Zoho verification failed")),
     error: data.error || (data.success ? undefined : result.error),
     details: data.details || (data.error || result.error ? { errorMsg: data.error || result.error } : null),
   };

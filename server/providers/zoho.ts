@@ -121,6 +121,143 @@ export async function getZohoAccessToken(
 }
 
 /**
+ * Exchanges Zoho OAuth Authorization Code for Refresh Token & Access Token,
+ * and queries the user's primary mailbox and account details.
+ */
+export async function exchangeZohoCodeForTokens(payload: {
+  clientId: string;
+  clientSecret: string;
+  code: string;
+  redirectUri: string;
+  region?: string;
+}): Promise<{
+  success: boolean;
+  refreshToken?: string;
+  accessToken?: string;
+  accountId?: string;
+  primaryEmail?: string;
+  verifiedEmails?: string[];
+  region?: string;
+  error?: string;
+  message?: string;
+}> {
+  const { clientId, clientSecret, code, redirectUri, region = 'com' } = payload;
+  const zohoDomain = getZohoDomain(region);
+
+  if (!clientId || !clientSecret || !code || !redirectUri) {
+    return {
+      success: false,
+      error: 'Missing required OAuth parameters (Client ID, Client Secret, Code, or Redirect URI).',
+    };
+  }
+
+  try {
+    const tokenUrl = `https://accounts.${zohoDomain}/oauth/v2/token`;
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId.trim(),
+      client_secret: clientSecret.trim(),
+      redirect_uri: redirectUri.trim(),
+      code: code.trim(),
+    });
+
+    const res = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'RSender-Automation/1.0',
+      },
+      body: params.toString(),
+    });
+
+    const data: any = await res.json().catch(() => ({}));
+
+    if (!res.ok || data.error) {
+      const errMsg = data.error_description || data.error || `HTTP ${res.status}: Failed to exchange authorization code`;
+      return {
+        success: false,
+        error: errMsg,
+        message: `Zoho token exchange failed: ${errMsg}`,
+      };
+    }
+
+    const accessToken = data.access_token;
+    const refreshToken = data.refresh_token;
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: 'Zoho did not return an access token.',
+      };
+    }
+
+    // Cache the access token if refreshToken is present
+    if (refreshToken) {
+      const cacheKey = `${zohoDomain}:${clientId.trim()}:${refreshToken.trim()}`;
+      const expiresInSeconds = Number(data.expires_in) || 3600;
+      tokenCache.set(cacheKey, {
+        accessToken,
+        expiresAt: Date.now() + Math.max(expiresInSeconds - 300, 60) * 1000,
+      });
+    }
+
+    // Fetch user account details using the fresh access token
+    let accountId = '';
+    let primaryEmail = '';
+    const verifiedEmails: string[] = [];
+
+    try {
+      const accountsUrl = `https://mail.${zohoDomain}/api/accounts`;
+      const accRes = await fetch(accountsUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Zoho-oauthtoken ${accessToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'RSender-Automation/1.0',
+        },
+      });
+
+      const accData: any = await accRes.json().catch(() => ({}));
+      if (accRes.ok && accData.data) {
+        const accountsList = Array.isArray(accData.data) ? accData.data : [accData.data];
+        if (accountsList.length > 0) {
+          const primaryAcc = accountsList[0];
+          accountId = String(primaryAcc.accountId || primaryAcc.accountAddress || '');
+          primaryEmail = primaryAcc.primaryEmailAddress || primaryAcc.accountAddress || '';
+          if (primaryEmail) verifiedEmails.push(primaryEmail);
+          if (Array.isArray(primaryAcc.sendMailDetails)) {
+            primaryAcc.sendMailDetails.forEach((s: any) => {
+              if (s.sendMailAddress && !verifiedEmails.includes(s.sendMailAddress)) {
+                verifiedEmails.push(s.sendMailAddress);
+              }
+            });
+          }
+        }
+      }
+    } catch {
+      // Non-fatal, tokens were still exchanged successfully
+    }
+
+    return {
+      success: true,
+      refreshToken: refreshToken || '',
+      accessToken,
+      accountId,
+      primaryEmail,
+      verifiedEmails,
+      region,
+      message: `Successfully connected Zoho Mail account${primaryEmail ? ` (${primaryEmail})` : ''}!`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Network exception during Zoho code exchange',
+      message: err.message || 'Network exception during Zoho code exchange',
+    };
+  }
+}
+
+/**
  * Validates Zoho Mail account credentials, checks account status, and discovers sender mailboxes.
  */
 export async function verifyZoho(channel: EmailChannel): Promise<VerifyResult> {

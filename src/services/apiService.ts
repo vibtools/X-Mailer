@@ -393,6 +393,59 @@ export async function verifyZohoChannelApi(config: {
   };
 }
 
+export async function exchangeZohoAuthCode(payload: {
+  clientId: string;
+  clientSecret: string;
+  code: string;
+  region?: string;
+  redirectUri: string;
+}): Promise<{
+  success: boolean;
+  refreshToken?: string;
+  accessToken?: string;
+  accountId?: string;
+  primaryEmail?: string;
+  verifiedEmails?: string[];
+  region?: string;
+  error?: string;
+  message?: string;
+}> {
+  const result = await safeJsonFetch<any>(
+    "/api/zoho/oauth/exchange",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    "/api/zoho/oauth/exchange"
+  );
+
+  if (!result.data) {
+    return {
+      success: false,
+      error: result.error || "Failed to reach Zoho token exchange endpoint",
+      message: result.error || "Zoho OAuth exchange failed",
+    };
+  }
+
+  const data = result.data;
+  return {
+    success: data.success === true,
+    refreshToken: data.refreshToken,
+    accessToken: data.accessToken,
+    accountId: data.accountId,
+    primaryEmail: data.primaryEmail,
+    verifiedEmails: data.verifiedEmails || [],
+    region: data.region,
+    error: data.error,
+    message:
+      data.message ||
+      (data.success
+        ? "Zoho OAuth authorization successful"
+        : data.error || "OAuth token exchange failed"),
+  };
+}
+
 
 export async function updateApiInDb(
   id: string,

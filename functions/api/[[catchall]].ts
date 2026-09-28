@@ -5,7 +5,7 @@ import { neon, Pool } from "@neondatabase/serverless";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "node:crypto";
 import { sendWithSmtp, verifySmtp } from "../../server/providers/smtp";
-import { sendWithZoho, verifyZoho } from "../../server/providers/zoho";
+import { sendWithZoho, verifyZoho, exchangeZohoCodeForTokens } from "../../server/providers/zoho";
 import { EmailChannel } from "../../server/providers/types";
 
 interface Env {
@@ -3068,6 +3068,140 @@ export async function onRequest(context: EventContext): Promise<Response> {
 
       const result = await verifyZoho(channel);
       return jsonResponse(result, result.success ? 200 : 400);
+    }
+
+    if (
+      method === "GET" &&
+      (path === "/oauth/zoho/callback" ||
+        path === "/oauth/zoho/callback/" ||
+        path === "/api/zoho/oauth/callback" ||
+        path === "/oauth/callback")
+    ) {
+      const code = url.searchParams.get("code") || "";
+      const error = url.searchParams.get("error") || "";
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zoho Mail Authorization</title>
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 16px;
+    }
+    .card {
+      background-color: #121826;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 28px 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(16, 185, 129, 0.2);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin: 0;
+      line-height: 1.5;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2>Authorizing Zoho Mail</h2>
+    <p>Connecting your mailbox credentials to X-Mailer. This authorization window will close automatically...</p>
+    <div class="badge">OAuth 2.0 Handshake Verified</div>
+  </div>
+  <script>
+    (function() {
+      const code = ${JSON.stringify(code)};
+      const error = ${JSON.stringify(error)};
+      if (window.opener) {
+        if (code) {
+          window.opener.postMessage({ type: 'ZOHO_OAUTH_CODE', code: code }, '*');
+        } else if (error) {
+          window.opener.postMessage({ type: 'ZOHO_OAUTH_ERROR', error: error }, '*');
+        }
+        setTimeout(function() {
+          window.close();
+        }, 500);
+      }
+    })();
+  </script>
+</body>
+</html>`;
+      return new Response(html, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
+    if (method === "POST" && path === "/api/zoho/oauth/exchange") {
+      const { clientId, clientSecret, code, redirectUri, region } = body;
+      if (!clientId || !clientSecret || !code || !redirectUri) {
+        return jsonResponse(
+          {
+            success: false,
+            error:
+              "Missing required parameters: clientId, clientSecret, code, and redirectUri are required.",
+          },
+          400
+        );
+      }
+
+      const exchangeResult = await exchangeZohoCodeForTokens({
+        clientId: String(clientId).trim(),
+        clientSecret: String(clientSecret).trim(),
+        code: String(code).trim(),
+        redirectUri: String(redirectUri).trim(),
+        region: region ? String(region).trim() : "com",
+      });
+
+      return jsonResponse(
+        exchangeResult,
+        exchangeResult.success ? 200 : 400
+      );
     }
 
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -51,6 +51,30 @@ function MainApp() {
   const { currentUser, adminUser, isAdminMode, isSetupMode, isAuthChecking, domains, currentHost, settings } = useApp();
   const [currentTab, setCurrentTab] = useState<UserTab>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // If in OAuth Popup Callback route
+  if (typeof window !== 'undefined' && (window.location.pathname.includes('/oauth/zoho/callback') || window.location.pathname.includes('/oauth/callback') || (window.location.pathname.startsWith('/oauth/') && window.location.search.includes('code=')))) {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const error = params.get('error');
+    if (window.opener) {
+      if (code) {
+        window.opener.postMessage({ type: 'ZOHO_OAUTH_CODE', code }, '*');
+      } else if (error) {
+        window.opener.postMessage({ type: 'ZOHO_OAUTH_ERROR', error }, '*');
+      }
+      setTimeout(() => window.close(), 500);
+    }
+    return (
+      <div className="min-h-screen bg-[#0b0f19] text-[#f8fafc] flex items-center justify-center p-4 font-sans">
+        <div className="bg-[#121826] border border-[#1e293b] rounded-xl p-7 text-center max-w-sm shadow-2xl">
+          <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <h3 className="font-semibold text-base mb-1.5">Authorizing Zoho Mail</h3>
+          <p className="text-xs text-slate-400">OAuth Handshake verified. Closing window automatically...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If initial session verification is in flight with Neon DB
   if (isAuthChecking) {

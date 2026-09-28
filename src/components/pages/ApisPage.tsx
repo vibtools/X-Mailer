@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ExternalLink,
   RotateCw,
@@ -20,10 +20,21 @@ import {
   ChevronRight,
   X,
   Activity,
+  Info,
+  Sparkles,
+  ShieldCheck,
+  ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ResendApiKey, ProviderType } from '../../types';
-import { testResendApiKey, sendEmailViaResend, verifySmtpChannelApi, verifyZohoChannelApi } from '../../services/apiService';
+import {
+  testResendApiKey,
+  sendEmailViaResend,
+  verifySmtpChannelApi,
+  verifyZohoChannelApi,
+  exchangeZohoAuthCode,
+} from '../../services/apiService';
 
 export const ApisPage: React.FC = () => {
   const { currentUser, apis, addApi, updateApi, deleteApi, getLockedApiIds, addLog, settings } = useApp();
@@ -37,6 +48,14 @@ export const ApisPage: React.FC = () => {
   const [dailyLimit, setDailyLimit] = useState(1000);
   const [showKeyText, setShowKeyText] = useState(false);
   const [isSavingApi, setIsSavingApi] = useState(false);
+
+  // Zoho Info / Setup Guide Modal State
+  const [isZohoInfoModalOpen, setIsZohoInfoModalOpen] = useState(false);
+  const [copiedGuideKey, setCopiedGuideKey] = useState<string | null>(null);
+
+  // Zoho OAuth in-flight authorization states
+  const [isAuthorizingZoho, setIsAuthorizingZoho] = useState(false);
+  const [isEditAuthorizingZoho, setIsEditAuthorizingZoho] = useState(false);
 
   // SMTP Connect Form Fields
   const [smtpHost, setSmtpHost] = useState('');
@@ -170,18 +189,158 @@ export const ApisPage: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const copyGuideValue = (key: string, val: string) => {
+    navigator.clipboard.writeText(val);
+    setCopiedGuideKey(key);
+    setTimeout(() => setCopiedGuideKey(null), 2000);
+  };
+
+  const getZohoDomainFromRegion = (region: string) => {
+    const clean = (region || 'com').trim().toLowerCase();
+    switch (clean) {
+      case 'eu': return 'zoho.eu';
+      case 'in': return 'zoho.in';
+      case 'com.au':
+      case 'au': return 'zoho.com.au';
+      case 'jp': return 'zoho.jp';
+      case 'ca': return 'zoho.ca';
+      case 'com.cn':
+      case 'cn': return 'zoho.com.cn';
+      default: return 'zoho.com';
+    }
+  };
+
+  const handleAuthorizeZohoOAuth = async (isEdit = false) => {
+    const clientId = (isEdit ? editZohoClientId : zohoClientId).trim();
+    const clientSecret = (isEdit ? editZohoClientSecret : zohoClientSecret).trim();
+    const region = (isEdit ? editZohoRegion : zohoRegion) || 'com';
+
+    if (!clientId || !clientSecret) {
+      alert('Please enter your Zoho Client ID and Client Secret first before authorizing.');
+      return;
+    }
+
+    if (isEdit) {
+      setIsEditAuthorizingZoho(true);
+      setEditTestResult(null);
+    } else {
+      setIsAuthorizingZoho(true);
+      setModalTestResult(null);
+    }
+
+    const zohoDomain = getZohoDomainFromRegion(region);
+    const redirectUri = `${window.location.origin}/oauth/zoho/callback`;
+    const scopes = 'ZohoMail.messages.CREATE,ZohoMail.accounts.READ,ZohoMail.messages.READ';
+    const authUrl = `https://accounts.${zohoDomain}/oauth/v2/auth?scope=${encodeURIComponent(scopes)}&client_id=${encodeURIComponent(clientId)}&response_type=code&access_type=offline&prompt=consent&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+    // Open Provider URL directly in popup
+    const popup = window.open(
+      authUrl,
+      'zoho_oauth_popup',
+      'width=600,height=700,scrollbars=yes,status=1'
+    );
+
+    if (!popup) {
+      alert('Popup was blocked by your browser. Please allow popups for this site to authorize Zoho Mail.');
+      setIsAuthorizingZoho(false);
+      setIsEditAuthorizingZoho(false);
+      return;
+    }
+
+    const handleOAuthMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'ZOHO_OAUTH_CODE') {
+        window.removeEventListener('message', handleOAuthMessage);
+        const code = event.data.code;
+        try {
+          const exchangeRes = await exchangeZohoAuthCode({
+            clientId,
+            clientSecret,
+            code,
+            region,
+            redirectUri,
+          });
+
+          if (exchangeRes.success && exchangeRes.refreshToken) {
+            if (isEdit) {
+              setEditZohoRefreshToken(exchangeRes.refreshToken);
+              if (exchangeRes.accountId) setEditZohoAccountId(exchangeRes.accountId);
+              if (exchangeRes.primaryEmail && (!editSenderEmail || editSenderEmail.includes('resend.dev'))) {
+                setEditSenderEmail(exchangeRes.primaryEmail);
+              }
+              setEditTestResult({
+                tested: true,
+                valid: true,
+                message: exchangeRes.message || `Successfully connected to Zoho Mail (${exchangeRes.primaryEmail})!`,
+                verifiedDomains: exchangeRes.verifiedEmails || [],
+              });
+            } else {
+              setZohoRefreshToken(exchangeRes.refreshToken);
+              if (exchangeRes.accountId) setZohoAccountId(exchangeRes.accountId);
+              if (exchangeRes.primaryEmail) {
+                setSenderEmail(exchangeRes.primaryEmail);
+              }
+              if (!apiLabel.trim() && exchangeRes.primaryEmail) {
+                setApiLabel(`Zoho - ${exchangeRes.primaryEmail}`);
+              }
+              setModalTestResult({
+                tested: true,
+                valid: true,
+                message: exchangeRes.message || `Successfully connected to Zoho Mail (${exchangeRes.primaryEmail})!`,
+                verifiedDomains: exchangeRes.verifiedEmails || [],
+              });
+            }
+          } else {
+            const errMsg = exchangeRes.error || exchangeRes.message || 'Failed to exchange authorization code.';
+            if (isEdit) {
+              setEditTestResult({ tested: true, valid: false, message: errMsg, error: 'OAUTH_EXCHANGE_FAILED' });
+            } else {
+              setModalTestResult({ tested: true, valid: false, message: errMsg, error: 'OAUTH_EXCHANGE_FAILED' });
+            }
+          }
+        } catch (err: any) {
+          const errMsg = err.message || 'Network error communicating with server during OAuth exchange.';
+          if (isEdit) {
+            setEditTestResult({ tested: true, valid: false, message: errMsg });
+          } else {
+            setModalTestResult({ tested: true, valid: false, message: errMsg });
+          }
+        } finally {
+          setIsAuthorizingZoho(false);
+          setIsEditAuthorizingZoho(false);
+        }
+      } else if (event.data?.type === 'ZOHO_OAUTH_ERROR') {
+        window.removeEventListener('message', handleOAuthMessage);
+        setIsAuthorizingZoho(false);
+        setIsEditAuthorizingZoho(false);
+        const errMsg = `Zoho authorization was declined or returned an error: ${event.data.error}`;
+        if (isEdit) {
+          setEditTestResult({ tested: true, valid: false, message: errMsg });
+        } else {
+          setModalTestResult({ tested: true, valid: false, message: errMsg });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+  };
+
   const handleTestConnectKey = async () => {
     setIsModalTesting(true);
     setModalTestResult(null);
 
     try {
       if (connectProviderType === 'zoho') {
-        if (!zohoClientId.trim() || !zohoClientSecret.trim() || !zohoRefreshToken.trim()) {
+        if (!zohoClientId.trim() || !zohoClientSecret.trim()) {
           setModalTestResult({
             tested: true,
             valid: false,
-            message: 'Please provide Client ID, Client Secret, and Refresh Token.',
+            message: 'Please enter Zoho Client ID and Client Secret.',
           });
+          return;
+        }
+
+        if (!zohoRefreshToken.trim()) {
+          handleAuthorizeZohoOAuth(false);
           return;
         }
 
@@ -277,8 +436,12 @@ export const ApisPage: React.FC = () => {
     }
 
     if (connectProviderType === 'zoho') {
-      if (!zohoClientId.trim() || !zohoClientSecret.trim() || !zohoRefreshToken.trim()) {
-        alert('Please fill in Client ID, Client Secret, and Refresh Token for Zoho Mail.');
+      if (!zohoClientId.trim() || !zohoClientSecret.trim()) {
+        alert('Please enter your Zoho Client ID and Client Secret.');
+        return;
+      }
+      if (!zohoRefreshToken.trim()) {
+        handleAuthorizeZohoOAuth(false);
         return;
       }
     } else if (connectProviderType === 'smtp') {
@@ -352,12 +515,17 @@ export const ApisPage: React.FC = () => {
 
     try {
       if (editProviderType === 'zoho') {
-        if (!editZohoClientId.trim() || !editZohoClientSecret.trim() || !editZohoRefreshToken.trim()) {
+        if (!editZohoClientId.trim() || !editZohoClientSecret.trim()) {
           setEditTestResult({
             tested: true,
             valid: false,
-            message: 'Please provide Client ID, Client Secret, and Refresh Token.',
+            message: 'Please provide Client ID and Client Secret.',
           });
+          return;
+        }
+
+        if (!editZohoRefreshToken.trim()) {
+          handleAuthorizeZohoOAuth(true);
           return;
         }
 
@@ -446,8 +614,12 @@ export const ApisPage: React.FC = () => {
     }
 
     if (editProviderType === 'zoho') {
-      if (!editZohoClientId.trim() || !editZohoClientSecret.trim() || !editZohoRefreshToken.trim()) {
-        alert('Please fill in Client ID, Client Secret, and Refresh Token for Zoho Mail.');
+      if (!editZohoClientId.trim() || !editZohoClientSecret.trim()) {
+        alert('Please fill in Client ID and Client Secret for Zoho Mail.');
+        return;
+      }
+      if (!editZohoRefreshToken.trim()) {
+        handleAuthorizeZohoOAuth(true);
         return;
       }
     } else if (editProviderType === 'smtp') {
@@ -1174,15 +1346,26 @@ export const ApisPage: React.FC = () => {
                       <span className="text-[10.5px] font-semibold text-[#34d399] flex items-center gap-1">
                         <Key className="w-3 h-3 text-[#10b981]" /> Zoho Mail OAuth 2.0 Credentials
                       </span>
-                      <a
-                        href="https://api-console.zoho.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] text-[#38bdf8] hover:underline inline-flex items-center gap-1"
-                      >
-                        <span>Zoho API Console</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsZohoInfoModalOpen(true)}
+                          className="text-[#38bdf8] hover:text-white bg-[#38bdf8]/10 hover:bg-[#38bdf8]/20 border border-[#38bdf8]/30 rounded-[4px] px-1.5 py-0.5 text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Zoho API Console Setup Guide"
+                        >
+                          <Info className="w-3 h-3 text-[#38bdf8]" />
+                          <span>Setup Guide</span>
+                        </button>
+                        <a
+                          href="https://api-console.zoho.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-[#94a3b8] hover:text-[#38bdf8] inline-flex items-center gap-1 transition-colors"
+                        >
+                          <span>Zoho Console</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
                     </div>
 
                     {/* Data Center Region */}
@@ -1254,51 +1437,59 @@ export const ApisPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Refresh Token */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
-                        <span>Zoho Refresh Token <span className="text-[#8b5cf6]">*</span></span>
-                        <span className="text-[9.5px] text-slate-400 font-mono">Scope: ZohoMail.messages.CREATE,ZohoMail.accounts.READ</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <input
-                          type={showZohoRefresh ? 'text' : 'password'}
-                          required={connectProviderType === 'zoho'}
-                          placeholder="1000.••••••••••••••••••••••••••••••••"
-                          value={zohoRefreshToken}
-                          onChange={(e) => {
-                            setZohoRefreshToken(e.target.value);
-                            setModalTestResult(null);
-                          }}
-                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
-                        />
+                    {/* OAuth Connection Status & Action (No manual refresh token field needed) */}
+                    {zohoRefreshToken ? (
+                      <div className="p-2.5 rounded-[6px] bg-[#10b981]/10 border border-[#10b981]/30 flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[#10b981] truncate">Zoho Mail Authorized</p>
+                            <p className="text-[10px] text-[#94a3b8] truncate font-mono">
+                              {senderEmail || zohoAccountId || 'Ready for live dispatch'}
+                            </p>
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setShowZohoRefresh(!showZohoRefresh)}
-                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
-                          title="Show/Hide Refresh Token"
+                          onClick={() => handleAuthorizeZohoOAuth(false)}
+                          disabled={isAuthorizingZoho}
+                          className="bg-[#1a2234] hover:bg-[#222d42] text-[#38bdf8] hover:text-white border border-[#1e293b] px-2 py-1 rounded text-[10px] font-medium cursor-pointer transition-colors shrink-0 flex items-center gap-1"
                         >
-                          {showZohoRefresh ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <RefreshCw className={`w-2.5 h-2.5 ${isAuthorizingZoho ? 'animate-spin' : ''}`} />
+                          <span>Re-authorize</span>
                         </button>
                       </div>
-                    </div>
-
-                    {/* Account ID / Email (Optional) */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between">
-                        <span>Account ID / Primary Email <span className="text-slate-400 font-normal">(Optional, auto-detected)</span></span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. sender@zoho.com (or leave empty to auto-detect)"
-                        value={zohoAccountId}
-                        onChange={(e) => {
-                          setZohoAccountId(e.target.value);
-                          if (!senderEmail) setSenderEmail(e.target.value);
-                        }}
-                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
-                      />
-                    </div>
+                    ) : (
+                      <div className="p-2.5 rounded-[6px] bg-[#0f172a] border border-[#1e293b] flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-[10.5px]">
+                          <span className="text-[#94a3b8] flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-[#38bdf8]" /> Auto OAuth 2.0 Connection
+                          </span>
+                          <span className="text-[9.5px] text-[#8b5cf6] font-mono font-medium">1-Click Handshake</span>
+                        </div>
+                        <p className="text-[10px] text-[#64748b] leading-relaxed">
+                          Enter your Client ID and Client Secret above, then click below to authorize Zoho Mail in a popup.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleAuthorizeZohoOAuth(false)}
+                          disabled={isAuthorizingZoho || !zohoClientId.trim() || !zohoClientSecret.trim()}
+                          className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed text-white py-1.5 px-3 rounded-[5px] text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                        >
+                          {isAuthorizingZoho ? (
+                            <>
+                              <RotateCw className="w-3.5 h-3.5 animate-spin text-white" />
+                              <span>Waiting for Zoho authorization in popup...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                              <span>Authorize & Connect with Zoho</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : connectProviderType === 'resend' ? (
                   /* RESEND API KEY FIELD */
@@ -1730,12 +1921,37 @@ export const ApisPage: React.FC = () => {
                 {/* 3. Provider Credentials */}
                 {editProviderType === 'zoho' ? (
                   /* ZOHO OAUTH / AUTH API FIELDS */
-                  <div className="flex flex-col gap-2 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
+                  <div className="flex flex-col gap-2.5 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-semibold text-[#34d399] flex items-center gap-1">
+                        <Key className="w-3 h-3 text-[#10b981]" /> Zoho Mail OAuth 2.0 Credentials
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsZohoInfoModalOpen(true)}
+                          className="text-[#38bdf8] hover:text-white bg-[#38bdf8]/10 hover:bg-[#38bdf8]/20 border border-[#38bdf8]/30 rounded-[4px] px-1.5 py-0.5 text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Zoho API Console Setup Guide"
+                        >
+                          <Info className="w-3 h-3 text-[#38bdf8]" />
+                          <span>Setup Guide</span>
+                        </button>
+                        <a
+                          href="https://api-console.zoho.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-[#94a3b8] hover:text-[#38bdf8] inline-flex items-center gap-1 transition-colors"
+                        >
+                          <span>Zoho Console</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                    </div>
+
                     {/* Zoho Data Center / Region */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
-                        <span>Zoho Data Center (Region) <span className="text-[#8b5cf6]">*</span></span>
-                        <span className="text-[9.5px] text-[#38bdf8] font-mono">OAuth 2.0 Token API</span>
+                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
+                        Zoho Data Center (Region) <span className="text-[#8b5cf6]">*</span>
                       </label>
                       <select
                         value={editZohoRegion}
@@ -1801,51 +2017,53 @@ export const ApisPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Refresh Token */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10.5px] font-semibold text-[#cbd5e1] flex justify-between items-center">
-                        <span>Zoho Refresh Token <span className="text-[#8b5cf6]">*</span></span>
-                        <span className="text-[9.5px] text-slate-400 font-mono">Scope: ZohoMail.messages.CREATE,ZohoMail.accounts.READ</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <input
-                          type={showEditZohoRefresh ? 'text' : 'password'}
-                          required={editProviderType === 'zoho'}
-                          placeholder="1000.••••••••••••••••••••••••••••••••"
-                          value={editZohoRefreshToken}
-                          onChange={(e) => {
-                            setEditZohoRefreshToken(e.target.value);
-                            setEditTestResult(null);
-                          }}
-                          className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_30px_6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] w-full font-mono placeholder-[#475569]"
-                        />
+                    {/* Connected Status & OAuth Re-authorize Action */}
+                    {editZohoRefreshToken ? (
+                      <div className="p-2.5 rounded-[6px] bg-[#10b981]/10 border border-[#10b981]/30 flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[#10b981] truncate">Zoho Mail Connected</p>
+                            <p className="text-[10px] text-[#94a3b8] truncate font-mono">
+                              {editSenderEmail || editZohoAccountId || 'Active OAuth Token'}
+                            </p>
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setShowEditZohoRefresh(!showEditZohoRefresh)}
-                          className="absolute right-2.5 bg-transparent border-none text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer"
-                          title="Show/Hide Refresh Token"
+                          onClick={() => handleAuthorizeZohoOAuth(true)}
+                          disabled={isEditAuthorizingZoho}
+                          className="bg-[#1a2234] hover:bg-[#222d42] text-[#38bdf8] hover:text-white border border-[#1e293b] px-2 py-1 rounded text-[10px] font-medium cursor-pointer transition-colors shrink-0 flex items-center gap-1"
                         >
-                          {showEditZohoRefresh ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <RefreshCw className={`w-2.5 h-2.5 ${isEditAuthorizingZoho ? 'animate-spin' : ''}`} />
+                          <span>Re-authorize</span>
                         </button>
                       </div>
-                    </div>
-
-                    {/* Account ID / Email (Optional) */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10.5px] font-semibold text-[#cbd5e1]">
-                        Account ID / Primary Email <span className="text-slate-400 font-normal">(Optional, auto-detected)</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. sender@zoho.com"
-                        value={editZohoAccountId}
-                        onChange={(e) => {
-                          setEditZohoAccountId(e.target.value);
-                          if (!editSenderEmail) setEditSenderEmail(e.target.value);
-                        }}
-                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] p-[6px_9px] rounded-[5px] text-[11.5px] outline-none focus:border-[#8b5cf6] font-mono placeholder-[#475569]"
-                      />
-                    </div>
+                    ) : (
+                      <div className="p-2.5 rounded-[6px] bg-[#0f172a] border border-[#1e293b] flex flex-col gap-2">
+                        <p className="text-[10px] text-[#64748b]">
+                          Enter Client ID and Client Secret above, then click below to re-authorize this account.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleAuthorizeZohoOAuth(true)}
+                          disabled={isEditAuthorizingZoho || !editZohoClientId.trim() || !editZohoClientSecret.trim()}
+                          className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed text-white py-1.5 px-3 rounded-[5px] text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                        >
+                          {isEditAuthorizingZoho ? (
+                            <>
+                              <RotateCw className="w-3.5 h-3.5 animate-spin text-white" />
+                              <span>Waiting for Zoho authorization in popup...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                              <span>Authorize & Connect with Zoho</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : editProviderType === 'resend' ? (
                   <div className="flex flex-col gap-1 bg-[#161f30] p-2.5 rounded-[6px] border border-[#1e293b]">
@@ -2336,6 +2554,171 @@ export const ApisPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ZOHO API SETUP GUIDE INFO MODAL */}
+      {isZohoInfoModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[1100] p-4"
+          onClick={() => setIsZohoInfoModalOpen(false)}
+        >
+          <div
+            className="bg-[#121826] border border-[#1e293b] rounded-[10px] w-full max-w-[500px] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-[12px_16px] border-b border-[#1e293b] flex justify-between items-center bg-[#1a2234]/60">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-[#38bdf8]/20 border border-[#38bdf8]/40 flex items-center justify-center text-[#38bdf8]">
+                  <Info className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="text-[13px] font-bold text-[#f8fafc] tracking-tight">Zoho API Console Setup Guide</h3>
+                  <p className="text-[10px] text-[#94a3b8]">Create OAuth 2.0 Client credentials in 1 minute</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsZohoInfoModalOpen(false)}
+                className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 overflow-y-auto max-h-[80vh] text-[11.5px]">
+              {/* Step 1: Application Type */}
+              <div className="bg-[#161f30] border border-[#1e293b] rounded-[8px] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 text-[#c084fc] flex items-center justify-center text-[10px] font-bold">1</span>
+                    Client Type
+                  </span>
+                  <span className="bg-[#10b981]/15 text-[#34d399] border border-[#10b981]/30 text-[10px] px-2 py-0.5 rounded font-semibold">
+                    Select in Zoho Console
+                  </span>
+                </div>
+                <div className="bg-[#0f172a] border border-[#334155] rounded-[6px] p-2 flex items-center justify-between">
+                  <span className="font-semibold text-[#f8fafc] text-xs">Server-based Applications</span>
+                  <span className="text-[10px] text-[#38bdf8] bg-[#38bdf8]/10 px-2 py-0.5 rounded font-medium">Recommended</span>
+                </div>
+                <p className="text-[10px] text-[#94a3b8] mt-1.5 leading-relaxed">
+                  In Zoho API Console, click <strong>"Add Client"</strong> and choose <strong>"Server-based Applications"</strong>.
+                </p>
+              </div>
+
+              {/* Step 2: Client Name */}
+              <div className="bg-[#161f30] border border-[#1e293b] rounded-[8px] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 text-[#c084fc] flex items-center justify-center text-[10px] font-bold">2</span>
+                    Client Name
+                  </span>
+                </div>
+                <div className="bg-[#0f172a] border border-[#1e293b] rounded-[6px] p-1.5 px-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs text-[#f8fafc] select-all">X-Mailer</span>
+                  <button
+                    type="button"
+                    onClick={() => copyGuideValue('clientName', 'X-Mailer')}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] hover:text-white px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer border border-[#334155]"
+                  >
+                    {copiedGuideKey === 'clientName' ? <Check className="w-3 h-3 text-[#10b981]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedGuideKey === 'clientName' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 3: Homepage URL */}
+              <div className="bg-[#161f30] border border-[#1e293b] rounded-[8px] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 text-[#c084fc] flex items-center justify-center text-[10px] font-bold">3</span>
+                    Homepage URL
+                  </span>
+                  <span className="text-[9.5px] text-[#94a3b8] font-mono">Current Domain</span>
+                </div>
+                <div className="bg-[#0f172a] border border-[#1e293b] rounded-[6px] p-1.5 px-2.5 flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] text-[#f8fafc] truncate select-all">{typeof window !== 'undefined' ? window.location.origin : ''}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyGuideValue('homepageUrl', window.location.origin)}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] hover:text-white px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer border border-[#334155] shrink-0"
+                  >
+                    {copiedGuideKey === 'homepageUrl' ? <Check className="w-3 h-3 text-[#10b981]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedGuideKey === 'homepageUrl' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 4: Authorized Redirect URIs */}
+              <div className="bg-[#161f30] border border-[#1e293b] rounded-[8px] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 text-[#c084fc] flex items-center justify-center text-[10px] font-bold">4</span>
+                    Authorized Redirect URIs
+                  </span>
+                  <span className="text-[9.5px] text-[#10b981] font-semibold">Auto Generated</span>
+                </div>
+                <div className="bg-[#0f172a] border border-[#1e293b] rounded-[6px] p-1.5 px-2.5 flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] text-[#f8fafc] truncate select-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/oauth/zoho/callback` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyGuideValue('redirectUri', `${window.location.origin}/oauth/zoho/callback`)}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] hover:text-white px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer border border-[#334155] shrink-0"
+                  >
+                    {copiedGuideKey === 'redirectUri' ? <Check className="w-3 h-3 text-[#10b981]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedGuideKey === 'redirectUri' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Step 5: OAuth Scopes */}
+              <div className="bg-[#161f30] border border-[#1e293b] rounded-[8px] p-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#94a3b8] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#8b5cf6]/20 text-[#c084fc] flex items-center justify-center text-[10px] font-bold">5</span>
+                    Authorized Scopes
+                  </span>
+                </div>
+                <div className="bg-[#0f172a] border border-[#1e293b] rounded-[6px] p-1.5 px-2.5 flex items-center justify-between gap-2">
+                  <span className="font-mono text-[10px] text-[#cbd5e1] truncate select-all">
+                    ZohoMail.messages.CREATE,ZohoMail.accounts.READ,ZohoMail.messages.READ
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyGuideValue('scopes', 'ZohoMail.messages.CREATE,ZohoMail.accounts.READ,ZohoMail.messages.READ')}
+                    className="bg-[#1e293b] hover:bg-[#334155] text-[#38bdf8] hover:text-white px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer border border-[#334155] shrink-0"
+                  >
+                    {copiedGuideKey === 'scopes' ? <Check className="w-3 h-3 text-[#10b981]" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedGuideKey === 'scopes' ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-[#1e293b] bg-[#1a2234]/40 flex justify-between items-center">
+              <a
+                href="https://api-console.zoho.com"
+                target="_blank"
+                rel="noreferrer"
+                className="bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-[#38bdf8] border border-[#38bdf8]/30 px-3 py-1.5 rounded-[5px] text-[11px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+              >
+                <span>Open Zoho API Console</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setIsZohoInfoModalOpen(false)}
+                className="bg-[#1a2234] hover:bg-[#222d42] text-[#f8fafc] border border-[#1e293b] px-3.5 py-1.5 rounded-[5px] text-[11px] font-medium cursor-pointer transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

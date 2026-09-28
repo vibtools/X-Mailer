@@ -42,6 +42,7 @@ import {
   verifyChannel,
   evictChannel,
   EmailChannel,
+  exchangeZohoCodeForTokens,
 } from "./server/providers";
 
 dotenv.config();
@@ -1273,6 +1274,137 @@ async function startServer() {
       return res.status(500).json({
         success: false,
         message: err.message || "Failed to verify Zoho Mail connection",
+      });
+    }
+  });
+
+  // Zoho Mail OAuth 2.0 Authorization Callback (Popup Window Landing Page)
+  app.get(
+    ["/oauth/zoho/callback", "/oauth/zoho/callback/", "/api/zoho/oauth/callback", "/oauth/callback"],
+    (req: Request, res: Response) => {
+      const code = req.query.code as string || "";
+      const error = req.query.error as string || "";
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zoho Mail Authorization</title>
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 16px;
+    }
+    .card {
+      background-color: #121826;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 28px 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(16, 185, 129, 0.2);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin: 0;
+      line-height: 1.5;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2>Authorizing Zoho Mail</h2>
+    <p>Connecting your mailbox credentials to X-Mailer. This authorization window will close automatically...</p>
+    <div class="badge">OAuth 2.0 Handshake Verified</div>
+  </div>
+  <script>
+    (function() {
+      const code = ${JSON.stringify(code)};
+      const error = ${JSON.stringify(error)};
+      if (window.opener) {
+        if (code) {
+          window.opener.postMessage({ type: 'ZOHO_OAUTH_CODE', code: code }, '*');
+        } else if (error) {
+          window.opener.postMessage({ type: 'ZOHO_OAUTH_ERROR', error: error }, '*');
+        }
+        setTimeout(function() {
+          window.close();
+        }, 500);
+      }
+    })();
+  </script>
+</body>
+</html>`);
+    }
+  );
+
+  // Zoho Mail OAuth 2.0 Exchange Endpoint
+  app.post("/api/zoho/oauth/exchange", async (req: Request, res: Response) => {
+    try {
+      const { clientId, clientSecret, code, redirectUri, region } = req.body;
+      if (!clientId || !clientSecret || !code || !redirectUri) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required parameters: clientId, clientSecret, code, and redirectUri are required.",
+        });
+      }
+
+      const exchangeResult = await exchangeZohoCodeForTokens({
+        clientId: String(clientId).trim(),
+        clientSecret: String(clientSecret).trim(),
+        code: String(code).trim(),
+        redirectUri: String(redirectUri).trim(),
+        region: region ? String(region).trim() : "com",
+      });
+
+      if (!exchangeResult.success) {
+        return res.status(400).json(exchangeResult);
+      }
+
+      return res.json(exchangeResult);
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        error: err.message || "Failed to exchange Zoho authorization code",
       });
     }
   });

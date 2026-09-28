@@ -1786,3 +1786,35 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   - `npm run build`: Succeeded.
   - `compile_applet`: Succeeded.
 
+### Session 37: Zoho Mail OAuth 2.0 Auto-Connect & Setup Guide Info Modal
+- **Objective:** Fulfill user request for Zoho Mail API integration:
+  1. Add an interactive `(i)` info guide button in the Zoho credentials header opening a compact popup with Zoho Console configuration parameters.
+  2. Eliminate the manual Zoho Refresh Token input field.
+  3. Implement a seamless 1-click "Connect with Zoho" OAuth 2.0 flow where users allow permissions in Zoho's consent window and the system automatically exchanges the code, fetches the account ID, and connects.
+- **Actions Taken:**
+  1. **Zoho API Setup Guide Modal (`ApisPage.tsx`):**
+     - Added a clean `(i)` button next to the Zoho provider header in Connect and Edit modals.
+     - Modal displays:
+       - **Client Type:** "Server-based Applications" (marked with recommended badge).
+       - **Client Name:** `X-Mailer` with 1-click copy button.
+       - **Homepage URL:** Current domain (`window.location.origin`) with 1-click copy button.
+       - **Authorized Redirect URIs:** Dynamic `{origin}/oauth/zoho/callback` with 1-click copy button.
+       - **Authorized Scopes:** `ZohoMail.messages.CREATE,ZohoMail.accounts.READ,ZohoMail.messages.READ` with 1-click copy button.
+       - Direct link to `https://api-console.zoho.com`.
+  2. **Removal of Manual Refresh Token Field:**
+     - Removed the manual `zohoRefreshToken` input field from both Connect and Edit modals.
+     - Users only enter `Client ID`, `Client Secret`, and select their `Data Center Region`.
+  3. **Automated OAuth 2.0 Authorization & Code Exchange Flow:**
+     - Added `handleAuthorizeZohoOAuth` in `ApisPage.tsx`: opens a centered OAuth popup pointing to Zoho's authorization URL with offline access and required scopes.
+     - Implemented `/oauth/zoho/callback` route handler in `App.tsx` and dual backends (`server.ts` & `functions/api/[[catchall]].ts`) communicating via `postMessage`.
+     - Added `exchangeZohoCodeForTokens` in `server/providers/zoho.ts`, `/api/zoho/oauth/exchange` in `server.ts` and `functions/api/[[catchall]].ts`, and `exchangeZohoAuthCode` in `src/services/apiService.ts`.
+     - Upon exchange, automatically queries `https://mail.zoho.{region}/api/accounts` with the new access token to discover the user's primary `accountId` and `sender_email` and mark the channel as connected.
+     - Edit modal reflects connected status with a "Re-authorize & Re-connect" button if credentials need re-linking.
+  4. **Lockfile & CI Cleanup:**
+     - Confirmed `package-lock.json` is clean and committed. Removed obsolete `bun.lock`.
+- **Verification:**
+  - `lint_applet` (`tsc --noEmit`): 0 errors.
+  - `npx tsc -p functions/tsconfig.json --noEmit`: 0 errors.
+  - `compile_applet` (`vite build`): Succeeded.
+
+

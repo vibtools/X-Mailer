@@ -2,7 +2,7 @@
  * Nodemailer Custom SMTP Provider Adapter with High-Speed Connection Pooling
  */
 
-import crypto from "crypto";
+import crypto from "node:crypto";
 import nodemailer, { type Transporter, type SendMailOptions } from "nodemailer";
 import { EmailChannel, EmailPayload, SendResult, VerifyResult } from "./types";
 

@@ -4,6 +4,8 @@
 import { neon, Pool } from "@neondatabase/serverless";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "node:crypto";
+import { sendWithSmtp, verifySmtp } from "../../server/providers/smtp";
+import { EmailChannel } from "../../server/providers/types";
 
 interface Env {
   DATABASE_URL?: string;
@@ -2514,19 +2516,74 @@ export async function onRequest(context: EventContext): Promise<Response> {
         providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend");
 
       if (resolvedProvider === "smtp") {
-        return jsonResponse(
-          {
-            success: false,
-            error:
-              "Custom SMTP channels require the Node.js runtime backend (server.ts) due to edge socket protocol constraints. Please run the Node server or use a Resend API channel on Cloudflare Pages.",
-            code: "EDGE_RUNTIME_SMTP_UNSUPPORTED",
-            provider: "smtp",
-          },
-          400,
-        );
+        const channel: EmailChannel = {
+          id: apiId || "temp",
+          name: apiName || "Custom SMTP",
+          provider_type: "smtp",
+          smtp_host: body.smtpHost || body.smtp_host,
+          smtp_port: body.smtpPort || body.smtp_port || 587,
+          smtp_secure: body.smtpSecure !== undefined ? body.smtpSecure : body.smtp_secure,
+          smtp_user: body.smtpUser || body.smtp_user,
+          smtp_pass: body.smtpPass || body.smtp_pass,
+        };
+
+        const mailPayload = {
+          from: String(from).trim(),
+          to: Array.isArray(to) ? to : [to],
+          subject: String(subject),
+          html: html,
+          text: plainText,
+          reply_to: rawReplyTo,
+          headers: headers && typeof headers === "object" ? headers : undefined,
+        };
+
+        const result = await sendWithSmtp(channel, mailPayload as any);
+
+        if (!result.success) {
+          try {
+            await runQuery(
+              env,
+              `INSERT INTO neon_logs (id, level, message, task_id, task_name, api_name, recipient, details, created_at)
+               VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, NOW())`,
+              [
+                `log_${Date.now()}`,
+                `Failed sending via SMTP to ${to}: ${result.error}`,
+                taskId || null,
+                taskName || null,
+                apiName || null,
+                Array.isArray(to) ? to.join(", ") : to,
+                JSON.stringify(result),
+              ],
+            );
+          } catch {}
+          return errorResponse(result.error || "Failed to send email via SMTP", 500, result);
+        }
+
+        try {
+          await runQuery(
+            env,
+            `INSERT INTO neon_logs (id, level, message, task_id, task_name, api_name, recipient, details, created_at)
+             VALUES ($1, 'success', $2, $3, $4, $5, $6, $7, NOW())`,
+            [
+              `log_${Date.now()}`,
+              `Delivered via SMTP to ${Array.isArray(to) ? to.join(", ") : to} [ID: ${result.messageId}]`,
+              taskId || null,
+              taskName || null,
+              apiName || null,
+              Array.isArray(to) ? to.join(", ") : to,
+              JSON.stringify({ id: result.messageId, provider: "smtp" }),
+            ],
+          );
+        } catch {}
+
+        return jsonResponse({
+          success: true,
+          id: result.messageId,
+          message: "Email dispatched successfully via SMTP",
+          provider: "smtp"
+        });
       }
 
-      const key = apiKey || directKey || env.RESEND_API_KEY;
       if (!key) return errorResponse("Resend API key is required", 400);
       if (!to || !from || !subject)
         return errorResponse("From, to, and subject are required", 400);
@@ -2679,6 +2736,28 @@ export async function onRequest(context: EventContext): Promise<Response> {
         message: "Email dispatched successfully",
       });
     }
+
+    if (method === "POST" && path === "/api/smtp/verify") {
+      const { smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = body;
+      const channel: EmailChannel = {
+        id: "verify",
+        name: "verify",
+        provider_type: "smtp",
+        smtp_host: smtpHost || body.host,
+        smtp_port: smtpPort || body.port,
+        smtp_secure: smtpSecure !== undefined ? smtpSecure : body.secure,
+        smtp_user: smtpUser || body.user,
+        smtp_pass: smtpPass || body.pass,
+      };
+      
+      const result = await verifySmtp(channel);
+      if (result.success) {
+        return jsonResponse({ success: true, message: "SMTP configuration is valid" });
+      } else {
+        return errorResponse(result.error || "Failed to verify SMTP configuration", 400);
+      }
+    }
+
 
     // 404 For Unmatched API Routes
     return errorResponse(`API endpoint not found: ${method} ${path}`, 404);

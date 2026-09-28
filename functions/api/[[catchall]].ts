@@ -2499,6 +2499,7 @@ export async function onRequest(context: EventContext): Promise<Response> {
         bcc,
         taskId,
         taskName,
+        apiId,
         apiName,
         providerType,
         provider_type,
@@ -2512,6 +2513,13 @@ export async function onRequest(context: EventContext): Promise<Response> {
         trackClicks,
       } = body;
 
+      const key = apiKey || directKey;
+      const rawReplyTo = replyTo || reply_to;
+      const plainText =
+        text && typeof text === "string" && text.trim().length > 0
+          ? text
+          : (html && typeof html === "string" && html.trim().length > 0 ? htmlToPlainText(html) : undefined);
+
       const resolvedProvider =
         providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend");
 
@@ -2520,6 +2528,7 @@ export async function onRequest(context: EventContext): Promise<Response> {
           id: apiId || "temp",
           name: apiName || "Custom SMTP",
           provider_type: "smtp",
+          sender_email: String(from || body.smtpUser || body.smtp_user || "").trim(),
           smtp_host: body.smtpHost || body.smtp_host,
           smtp_port: body.smtpPort || body.smtp_port || 587,
           smtp_secure: body.smtpSecure !== undefined ? body.smtpSecure : body.smtp_secure,
@@ -2597,7 +2606,6 @@ export async function onRequest(context: EventContext): Promise<Response> {
       }
 
       const recipientList: string[] = Array.isArray(to) ? to : [to];
-      const rawReplyTo = replyTo || reply_to;
       const isAutoReplyTo = autoReplyTo !== false;
 
       // Query neon_settings for deliverability defaults
@@ -2616,12 +2624,6 @@ export async function onRequest(context: EventContext): Promise<Response> {
           enableGlobalUnsub = settingsRows[0].enable_global_unsubscribe !== false;
         }
       } catch {}
-
-      // Dual-Part MIME Auto-Converter: Generates RFC 2046 compliant text/plain alternative
-      const plainText =
-        text && typeof text === "string" && text.trim().length > 0
-          ? text
-          : (html && typeof html === "string" && html.trim().length > 0 ? htmlToPlainText(html) : undefined);
 
       const isRequestedOpen = Boolean(open_tracking ?? openTracking ?? track_opens ?? trackOpens);
       const isRequestedClick = Boolean(click_tracking ?? clickTracking ?? track_clicks ?? trackClicks);
@@ -2743,6 +2745,7 @@ export async function onRequest(context: EventContext): Promise<Response> {
         id: "verify",
         name: "verify",
         provider_type: "smtp",
+        sender_email: String(smtpUser || body.user || "").trim(),
         smtp_host: smtpHost || body.host,
         smtp_port: smtpPort || body.port,
         smtp_secure: smtpSecure !== undefined ? smtpSecure : body.secure,

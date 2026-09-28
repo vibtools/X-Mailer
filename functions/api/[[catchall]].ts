@@ -1223,6 +1223,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
             dailyLimit: Number(r.daily_limit) || 1000,
             usedToday: Number(r.used_today) || 0,
             status: r.status || "active",
+            provider_type: r.provider_type || "resend",
+            smtp_host: r.smtp_host || "",
+            smtp_port: Number(r.smtp_port) || 587,
+            smtp_secure: Boolean(r.smtp_secure),
+            smtp_user: r.smtp_user || "",
+            smtp_pass: r.smtp_pass || "",
             lastTested: r.last_tested || "",
             testStatusMsg: r.test_status_msg || "",
             createdAt: r.created_at
@@ -1332,6 +1338,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
           lastTested: lastTested || "Just now",
           testStatusMsg: testStatusMsg || "",
           createdAt: nowIso,
+          provider_type: (provider_type || providerType) || "resend",
+          smtp_host: (smtp_host || smtpHost) || null,
+          smtp_port: (smtp_port !== undefined ? smtp_port : smtpPort) || 587,
+          smtp_secure: (smtp_secure !== undefined ? smtp_secure : smtpSecure) || false,
+          smtp_user: (smtp_user || smtpUser) || null,
+          smtp_pass: (smtp_pass || smtpPass) || null,
         });
       }
     }

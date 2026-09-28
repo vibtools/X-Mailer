@@ -122,11 +122,11 @@ export const ApisPage: React.FC = () => {
   const activeKeysCount = apis.filter((a) => a.status === 'active' || a.status === 'sending_only').length;
   const totalCapacity = apis.reduce((acc, curr) => acc + (curr.dailyLimit || 1000), 0);
 
-  // Mask Key Helper: re_EjÃ¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢6RQt
+  // Mask Key Helper: re_Ej••••••••6RQt
   const maskApiKey = (key: string) => {
-    if (!key) return 're_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢key';
-    if (key.length <= 8) return 're_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢' + key.slice(-3);
-    return key.substring(0, 5) + 'Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢' + key.slice(-4);
+    if (!key) return 're_••••••••key';
+    if (key.length <= 8) return 're_••••' + key.slice(-3);
+    return key.substring(0, 5) + '••••••••' + key.slice(-4);
   };
 
   const copyToClipboard = (id: string, text: string) => {
@@ -572,7 +572,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#10b981] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              Ã¢Å“â€œ
+              ✔️
             </div>
           </div>
 
@@ -587,7 +587,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#3b82f6] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              Ã°Å¸â€œÅ 
+              📊
             </div>
           </div>
         </div>
@@ -739,7 +739,7 @@ export const ApisPage: React.FC = () => {
                               title="Copy SMTP host"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">Ã¢Å“â€œ</span>
+                                <span className="text-[10px] text-[#10b981] font-semibold">✔️</span>
                               ) : (
                                 <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -758,7 +758,7 @@ export const ApisPage: React.FC = () => {
                               title="Copy API Key"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">Ã¢Å“â€œ</span>
+                                <span className="text-[10px] text-[#10b981] font-semibold">✔️</span>
                               ) : (
                                 <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -855,7 +855,7 @@ export const ApisPage: React.FC = () => {
                               setEditSmtpHost(item.smtpHost || item.smtp_host || '');
                               setEditSmtpPort(Number(item.smtpPort || item.smtp_port) || 587);
                               setEditSmtpSecure(item.smtpSecure !== undefined ? Boolean(item.smtpSecure) : Boolean(item.smtp_secure));
-                              setEditSmtpUser(item.smtpUser || item.smtpUser || '');
+                              setEditSmtpUser(item.smtpUser || item.smtp_user || '');
                               setEditSmtpPass(item.smtpPass || item.smtp_pass || '');
                               setEditTestResult(null);
                             }}
@@ -921,7 +921,6 @@ export const ApisPage: React.FC = () => {
       {isConnectModalOpen && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[1000] p-4"
-          onClick={() => setIsConnectModalOpen(false)}
         >
           <div
             className="bg-[#121826] border border-[#1e293b] rounded-[10px] w-full max-w-[480px] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150"
@@ -1019,7 +1018,7 @@ export const ApisPage: React.FC = () => {
                       <input
                         type={showKeyText ? 'text' : 'password'}
                         required={connectProviderType === 'resend'}
-                        placeholder="re_Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
+                        placeholder="re_••••••••••••"
                         value={resendKey}
                         onChange={(e) => {
                           setResendKey(e.target.value);
@@ -1159,7 +1158,7 @@ export const ApisPage: React.FC = () => {
                         <input
                           type={showSmtpPass ? 'text' : 'password'}
                           required={connectProviderType === 'smtp'}
-                          placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
+                          placeholder="••••••••••••"
                           value={smtpPass}
                           onChange={(e) => {
                             setSmtpPass(e.target.value);
@@ -1293,7 +1292,6 @@ export const ApisPage: React.FC = () => {
       {apiToEdit && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[1000] p-4"
-          onClick={() => setApiToEdit(null)}
         >
           <div
             className="bg-[#121826] border border-[#1e293b] rounded-[10px] w-full max-w-[480px] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150"
@@ -1652,7 +1650,6 @@ export const ApisPage: React.FC = () => {
       {apiToDelete && (
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-sm flex justify-center items-center z-[1000] p-4"
-          onClick={() => setApiToDelete(null)}
         >
           <div
             className="bg-[#121826] border border-[#1e293b] rounded-[7px] w-full max-w-[320px] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex flex-col gap-2"
@@ -1686,7 +1683,6 @@ export const ApisPage: React.FC = () => {
       {testSendModalApi && (
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-sm flex justify-center items-center z-[1000] p-4"
-          onClick={() => setTestSendModalApi(null)}
         >
           <div
             className="bg-[#121826] border border-[#1e293b] rounded-[8px] w-full max-w-sm shadow-2xl overflow-hidden"

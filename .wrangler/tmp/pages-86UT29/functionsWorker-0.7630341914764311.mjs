@@ -45882,7 +45882,15 @@ async function sendWithSmtp(channel2, payload) {
       provider: "smtp",
       error: err.message || "Failed to dispatch email via SMTP server",
       code: err.code || "SMTP_SEND_FAILED",
-      details: err
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        command: err.command,
+        responseCode: err.responseCode,
+        response: err.response
+      }
     };
   }
 }
@@ -45898,6 +45906,17 @@ async function verifySmtp(channel2) {
   const isSecure = channel2.smtp_secure !== void 0 ? Boolean(channel2.smtp_secure) : port === 465;
   const isLocalHost = channel2.smtp_host.trim() === "localhost" || channel2.smtp_host.trim() === "127.0.0.1";
   const rejectUnauthorized = channel2.smtp_tls_reject_unauthorized !== void 0 ? Boolean(channel2.smtp_tls_reject_unauthorized) : !isLocalHost;
+  const debugLogs = [];
+  const customLogger = {
+    level: /* @__PURE__ */ __name(() => {
+    }, "level"),
+    trace: /* @__PURE__ */ __name((...args) => debugLogs.push(`[TRACE] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "trace"),
+    debug: /* @__PURE__ */ __name((...args) => debugLogs.push(`[DEBUG] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "debug"),
+    info: /* @__PURE__ */ __name((...args) => debugLogs.push(`[INFO]  ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "info"),
+    warn: /* @__PURE__ */ __name((...args) => debugLogs.push(`[WARN]  ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "warn"),
+    error: /* @__PURE__ */ __name((...args) => debugLogs.push(`[ERROR] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "error"),
+    fatal: /* @__PURE__ */ __name((...args) => debugLogs.push(`[FATAL] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "fatal")
+  };
   const testTransporter = nodemailer_default.createTransport({
     host: channel2.smtp_host.trim(),
     port,
@@ -45911,7 +45930,9 @@ async function verifySmtp(channel2) {
     tls: {
       rejectUnauthorized,
       minVersion: "TLSv1.2"
-    }
+    },
+    debug: true,
+    logger: customLogger
   });
   try {
     await testTransporter.verify();
@@ -45937,7 +45958,13 @@ async function verifySmtp(channel2) {
       success: false,
       message: detailedMsg,
       error: err.code || "SMTP_VERIFY_ERROR",
-      details: err
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        protocolLogs: debugLogs
+      }
     };
   }
 }
@@ -46986,11 +47013,11 @@ async function onRequest(context2) {
                last_tested = COALESCE($8, last_tested),
                test_status_msg = COALESCE($9, test_status_msg),
                provider_type = COALESCE($11, provider_type),
-               smtp_host = COALESCE($12, smtp_host),
-               smtp_port = COALESCE($13, smtp_port),
-               smtp_secure = COALESCE($14, smtp_secure),
-               smtp_user = COALESCE($15, smtp_user),
-               smtp_pass = COALESCE($16, smtp_pass)
+               smtp_host = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($12, smtp_host) END,
+               smtp_port = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($13, smtp_port) END,
+               smtp_secure = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($14, smtp_secure) END,
+               smtp_user = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($15, smtp_user) END,
+               smtp_pass = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($16, smtp_pass) END
            WHERE id = $10`,
           [
             userId ?? null,
@@ -48506,13 +48533,13 @@ var init_functionsRoutes_0_4235557635117051 = __esm({
   }
 });
 
-// ../.wrangler/tmp/bundle-H7weaM/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-8zTLdE/middleware-loader.entry.ts
 init_functionsRoutes_0_4235557635117051();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
 init_performance2();
 
-// ../.wrangler/tmp/bundle-H7weaM/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-8zTLdE/middleware-insertion-facade.js
 init_functionsRoutes_0_4235557635117051();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
 init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_console();
@@ -49029,7 +49056,7 @@ var jsonError = /* @__PURE__ */ __name(async (request3, env2, _ctx, middlewareCt
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-H7weaM/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-8zTLdE/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -49065,7 +49092,7 @@ function __facade_invoke__(request3, env2, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-H7weaM/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-8zTLdE/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

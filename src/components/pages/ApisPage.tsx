@@ -55,7 +55,10 @@ export const ApisPage: React.FC = () => {
     valid: boolean;
     message: string;
     verifiedDomains?: string[];
+    error?: string;
+    details?: any;
   } | null>(null);
+  const [showEditDebug, setShowEditDebug] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Testing state inside connect modal
@@ -65,7 +68,10 @@ export const ApisPage: React.FC = () => {
     valid: boolean;
     message: string;
     verifiedDomains?: string[];
+    error?: string;
+    details?: any;
   } | null>(null);
+  const [showModalDebug, setShowModalDebug] = useState(false);
 
   // Search, Filter & Pagination State
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,6 +169,8 @@ export const ApisPage: React.FC = () => {
           tested: true,
           valid: res.success,
           message: res.message,
+          error: res.error,
+          details: res.details,
         });
 
         if (res.success && !senderEmail) {
@@ -291,6 +299,8 @@ export const ApisPage: React.FC = () => {
           tested: true,
           valid: res.success,
           message: res.message,
+          error: res.error,
+          details: res.details,
         });
       } else {
         if (!editKey.trim()) {
@@ -829,7 +839,7 @@ export const ApisPage: React.FC = () => {
                             className="bg-[#1a2234] border border-[#1e293b] hover:border-[#334155] hover:bg-[#222d42] text-[#10b981] py-[3px] px-[7px] rounded-[4px] text-[10.5px] font-medium cursor-pointer inline-flex items-center gap-1 transition-all"
                             title="Send live test email"
                           >
-                            <span>Ã¢â€ â€” Test</span>
+                            <span>→ Test</span>
                           </button>
 
                           <button
@@ -900,7 +910,7 @@ export const ApisPage: React.FC = () => {
               disabled={validCurrentPage === 1}
               className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
             >
-              Ã¢â‚¬Â¹ Prev
+              ‹ Prev
             </button>
             <span className="font-mono px-1">
               {validCurrentPage} / {totalPages}
@@ -911,7 +921,7 @@ export const ApisPage: React.FC = () => {
               disabled={validCurrentPage === totalPages || totalPages === 0}
               className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
             >
-              Next Ã¢â‚¬Âº
+              Next ›
             </button>
           </div>
         </div>
@@ -963,7 +973,7 @@ export const ApisPage: React.FC = () => {
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      Ã¢â€“Â¼
+                      ▼
                     </div>
                   </div>
                 </div>
@@ -1011,7 +1021,7 @@ export const ApisPage: React.FC = () => {
                         rel="noreferrer"
                         className="text-[10px] text-[#38bdf8] hover:underline"
                       >
-                        Get Key Ã¢â€ â€”
+                        Get Key →
                       </a>
                     </div>
                     <div className="relative flex items-center">
@@ -1243,6 +1253,31 @@ export const ApisPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold">{modalTestResult.valid ? 'Verification Successful' : 'Connection Failed'}</p>
                       <p className="text-[10.5px] mt-0.5 opacity-90 break-words">{modalTestResult.message}</p>
+                      {!modalTestResult.valid && (modalTestResult.error || modalTestResult.details) && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowModalDebug(!showModalDebug)}
+                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1"
+                          >
+                            {showModalDebug ? 'Hide Debug Logs' : 'View Debug Logs'}
+                          </button>
+                          {showModalDebug && (
+                            <div className="mt-1.5 p-2 bg-[#0f172a] rounded-[4px] border border-[#1e293b] overflow-x-auto">
+                              {modalTestResult.error && (
+                                <p className="text-[10px] font-mono text-red-400 mb-1 font-semibold">{modalTestResult.error}</p>
+                              )}
+                              {modalTestResult.details && (
+                                <pre className="text-[9.5px] font-mono text-slate-300 leading-tight">
+                                  {typeof modalTestResult.details === 'string'
+                                    ? modalTestResult.details
+                                    : JSON.stringify(modalTestResult.details, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1334,7 +1369,7 @@ export const ApisPage: React.FC = () => {
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      Ã¢â€“Â¼
+                      ▼
                     </div>
                   </div>
                 </div>
@@ -1380,7 +1415,7 @@ export const ApisPage: React.FC = () => {
                         rel="noreferrer"
                         className="text-[10px] text-[#38bdf8] hover:underline"
                       >
-                        Get Key Ã¢â€ â€”
+                        Get Key →
                       </a>
                     </div>
                     <div className="relative flex items-center">
@@ -1601,6 +1636,31 @@ export const ApisPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold">{editTestResult.valid ? 'Verification Successful' : 'Connection Failed'}</p>
                       <p className="text-[10.5px] mt-0.5 opacity-90 break-words">{editTestResult.message}</p>
+                      {!editTestResult.valid && (editTestResult.error || editTestResult.details) && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowEditDebug(!showEditDebug)}
+                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1"
+                          >
+                            {showEditDebug ? 'Hide Debug Logs' : 'View Debug Logs'}
+                          </button>
+                          {showEditDebug && (
+                            <div className="mt-1.5 p-2 bg-[#0f172a] rounded-[4px] border border-[#1e293b] overflow-x-auto">
+                              {editTestResult.error && (
+                                <p className="text-[10px] font-mono text-red-400 mb-1 font-semibold">{editTestResult.error}</p>
+                              )}
+                              {editTestResult.details && (
+                                <pre className="text-[9.5px] font-mono text-slate-300 leading-tight">
+                                  {typeof editTestResult.details === 'string'
+                                    ? editTestResult.details
+                                    : JSON.stringify(editTestResult.details, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

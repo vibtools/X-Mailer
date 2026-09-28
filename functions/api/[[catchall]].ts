@@ -1403,11 +1403,11 @@ export async function onRequest(context: EventContext): Promise<Response> {
                last_tested = COALESCE($8, last_tested),
                test_status_msg = COALESCE($9, test_status_msg),
                provider_type = COALESCE($11, provider_type),
-               smtp_host = COALESCE($12, smtp_host),
-               smtp_port = COALESCE($13, smtp_port),
-               smtp_secure = COALESCE($14, smtp_secure),
-               smtp_user = COALESCE($15, smtp_user),
-               smtp_pass = COALESCE($16, smtp_pass)
+               smtp_host = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($12, smtp_host) END,
+               smtp_port = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($13, smtp_port) END,
+               smtp_secure = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($14, smtp_secure) END,
+               smtp_user = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($15, smtp_user) END,
+               smtp_pass = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($16, smtp_pass) END
            WHERE id = $10`,
           [
             userId ?? null,

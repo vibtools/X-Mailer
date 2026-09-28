@@ -1052,6 +1052,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           apiName: selectedApi.name,
           recipient: recipient.email,
           message: `Failed sending to ${recipient.email}: ${recs[currentRecipientIndex].error}`,
+          details: (res as any).details || undefined,
         });
       }
     } catch (err: any) {
@@ -1090,6 +1091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             apiName: selectedApi.name,
             recipient: recipient.email,
             message: `Dispatch exception for ${recipient.email}: ${recs[currentRecipientIndex].error}`,
+            details: { error: err.message, stack: err.stack },
           });
         }
       }

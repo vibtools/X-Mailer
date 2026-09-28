@@ -149,7 +149,15 @@ export async function sendWithSmtp(
       provider: "smtp",
       error: err.message || "Failed to dispatch email via SMTP server",
       code: err.code || "SMTP_SEND_FAILED",
-      details: err,
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        command: err.command,
+        responseCode: err.responseCode,
+        response: err.response,
+      },
     };
   }
 }
@@ -172,6 +180,18 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
     ? Boolean(channel.smtp_tls_reject_unauthorized)
     : !isLocalHost;
 
+  // Detailed forensic logger for connection issues
+  const debugLogs: string[] = [];
+  const customLogger = {
+    level: () => {},
+    trace: (...args: any[]) => debugLogs.push(`[TRACE] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    debug: (...args: any[]) => debugLogs.push(`[DEBUG] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    info: (...args: any[]) => debugLogs.push(`[INFO]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    warn: (...args: any[]) => debugLogs.push(`[WARN]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    error: (...args: any[]) => debugLogs.push(`[ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    fatal: (...args: any[]) => debugLogs.push(`[FATAL] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+  };
+
   // For testing, use non-pooled standalone verification transporter
   const testTransporter = nodemailer.createTransport({
     host: channel.smtp_host.trim(),
@@ -187,6 +207,8 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
       rejectUnauthorized,
       minVersion: "TLSv1.2",
     },
+    debug: true,
+    logger: customLogger as any,
   });
 
   try {
@@ -215,7 +237,13 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
       success: false,
       message: detailedMsg,
       error: err.code || "SMTP_VERIFY_ERROR",
-      details: err,
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        protocolLogs: debugLogs,
+      },
     };
   }
 }

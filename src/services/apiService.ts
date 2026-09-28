@@ -300,7 +300,7 @@ export async function verifySmtpChannelApi(config: {
   smtpUser: string;
   smtpPass?: string;
   senderEmail?: string;
-}): Promise<{ success: boolean; message: string; error?: string }> {
+}): Promise<{ success: boolean; message: string; error?: string; details?: any }> {
   const result = await safeJsonFetch<any>(
     "/api/smtp/verify",
     {

@@ -49648,7 +49648,15 @@ async function sendWithSmtp(channel22, payload) {
       provider: "smtp",
       error: err.message || "Failed to dispatch email via SMTP server",
       code: err.code || "SMTP_SEND_FAILED",
-      details: err
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        command: err.command,
+        responseCode: err.responseCode,
+        response: err.response
+      }
     };
   }
 }
@@ -49665,6 +49673,17 @@ async function verifySmtp(channel22) {
   const isSecure = channel22.smtp_secure !== void 0 ? Boolean(channel22.smtp_secure) : port === 465;
   const isLocalHost = channel22.smtp_host.trim() === "localhost" || channel22.smtp_host.trim() === "127.0.0.1";
   const rejectUnauthorized = channel22.smtp_tls_reject_unauthorized !== void 0 ? Boolean(channel22.smtp_tls_reject_unauthorized) : !isLocalHost;
+  const debugLogs = [];
+  const customLogger = {
+    level: /* @__PURE__ */ __name2(() => {
+    }, "level"),
+    trace: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[TRACE] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "trace"),
+    debug: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[DEBUG] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "debug"),
+    info: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[INFO]  ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "info"),
+    warn: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[WARN]  ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "warn"),
+    error: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[ERROR] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "error"),
+    fatal: /* @__PURE__ */ __name2((...args) => debugLogs.push(`[FATAL] ${args.map((a3) => typeof a3 === "object" ? JSON.stringify(a3) : a3).join(" ")}`), "fatal")
+  };
   const testTransporter = nodemailer_default.createTransport({
     host: channel22.smtp_host.trim(),
     port,
@@ -49678,7 +49697,9 @@ async function verifySmtp(channel22) {
     tls: {
       rejectUnauthorized,
       minVersion: "TLSv1.2"
-    }
+    },
+    debug: true,
+    logger: customLogger
   });
   try {
     await testTransporter.verify();
@@ -49704,7 +49725,13 @@ async function verifySmtp(channel22) {
       success: false,
       message: detailedMsg,
       error: err.code || "SMTP_VERIFY_ERROR",
-      details: err
+      details: {
+        errorMsg: err.message,
+        code: err.code,
+        syscall: err.syscall,
+        hostname: err.hostname,
+        protocolLogs: debugLogs
+      }
     };
   }
 }
@@ -50775,11 +50802,11 @@ async function onRequest(context22) {
                last_tested = COALESCE($8, last_tested),
                test_status_msg = COALESCE($9, test_status_msg),
                provider_type = COALESCE($11, provider_type),
-               smtp_host = COALESCE($12, smtp_host),
-               smtp_port = COALESCE($13, smtp_port),
-               smtp_secure = COALESCE($14, smtp_secure),
-               smtp_user = COALESCE($15, smtp_user),
-               smtp_pass = COALESCE($16, smtp_pass)
+               smtp_host = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($12, smtp_host) END,
+               smtp_port = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($13, smtp_port) END,
+               smtp_secure = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($14, smtp_secure) END,
+               smtp_user = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($15, smtp_user) END,
+               smtp_pass = CASE WHEN COALESCE($11, provider_type) = 'resend' THEN NULL ELSE COALESCE($16, smtp_pass) END
            WHERE id = $10`,
           [
             userId ?? null,

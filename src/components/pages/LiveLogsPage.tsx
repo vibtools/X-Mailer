@@ -361,6 +361,14 @@ export const LiveLogsPage: React.FC = () => {
                     }`}
                   >
                     {log.message}
+                    {log.details && (
+                      <details className="mt-1 cursor-pointer">
+                        <summary className="text-[10px] text-slate-500 hover:text-slate-400 font-medium select-none">Show Details</summary>
+                        <pre className="mt-1 p-2 bg-slate-900 rounded border border-slate-800 overflow-x-auto text-[9.5px] font-mono text-slate-300 leading-tight cursor-text">
+                          {typeof log.details === 'string' ? log.details : JSON.stringify(log.details, null, 2)}
+                        </pre>
+                      </details>
+                    )}
                   </span>
                 </div>
               );

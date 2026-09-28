@@ -3145,6 +3145,17 @@ async function startServer() {
       // LIVE CALL VIA UNIFIED PROVIDER ENGINE
       const sendResult = await sendEmailUnified(resolvedChannel, emailPayload);
 
+      // Auto-heal numeric accountId in neon_apis if discovered
+      if (sendResult.details?.accountId && apiId && apiId !== 'manual_channel' && hasRealDatabaseUrl) {
+        const numId = String(sendResult.details.accountId).trim();
+        if (/^\d+$/.test(numId) && resolvedChannel.zoho_account_id !== numId) {
+          pool.query(
+            "UPDATE neon_apis SET zoho_account_id = $1 WHERE id = $2",
+            [numId, apiId]
+          ).catch(() => {});
+        }
+      }
+
       if (sendResult.success) {
         await insertNeonLog({
           level: "success",

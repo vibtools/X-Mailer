@@ -89,6 +89,7 @@ export interface SendEmailResult {
   error?: string;
   simulated?: boolean;
   provider?: "resend" | "smtp" | "zoho";
+  details?: any;
 }
 
 export interface NeonHealthResponse {
@@ -1145,6 +1146,8 @@ export async function sendEmailViaResend(
     return {
       success: false,
       error: result.error || "Failed sending email via provider",
+      provider: result.data?.provider,
+      details: result.data?.details || result.data,
     };
   }
 

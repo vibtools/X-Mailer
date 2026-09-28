@@ -1817,4 +1817,32 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   - `npx tsc -p functions/tsconfig.json --noEmit`: 0 errors.
   - `compile_applet` (`vite build`): Succeeded.
 
+### Session 38: Zoho Mail API "Invalid Input" Root Cause Forensic Audit & Multi-Provider System Fix
+- **Objective:** Perform complete forensic audit of the email sending pipeline and multi-provider channels to determine the exact root causes of "Failed sending ... Invalid Input" (Screenshot 16) and missing debug logs, fix all underlying schema and payload mismatches, and ensure full cross-platform compatibility on Cloudflare Pages and Node/Express.
+- **Root Cause Forensic Findings:**
+  1. **Body Schema Violation (`headers` in JSON Payload):** In `AppContext.tsx`, dynamic RFC-8058 `antiSpamHeaders` (e.g. `List-Unsubscribe`, `Precedence: bulk`, `X-Mailer`) was generated and passed in `payload.headers`. In `server/providers/zoho.ts`, this was injected directly into the `zohoBody` sent to Zoho's `POST /api/accounts/{accountId}/messages` endpoint. The Zoho Mail Send Mail REST API strictly validates the JSON keys and rejects unknown properties with `status: 400, description: "Invalid Input"` (Zoho error code `EXTRA_KEY_FOUND_IN_JSON`).
+  2. **Non-Numeric Account ID in Endpoint URL:** The path parameter `{accountId}` in `https://mail.zoho.com/api/accounts/{accountId}/messages` must strictly be a numeric `Long` integer. In `ApisPage.tsx`, fallback logic previously stored the sender email address (`alexharrisreal49@zohomail.com`) into `zoho_account_id`. When passed into the endpoint URL (`/api/accounts/alexharrisreal49%40zohomail.com/messages`), Zoho's router rejected the non-numeric parameter with `400 Bad Request: "Invalid Input"`.
+  3. **RFC 5322 Formatted `fromAddress`:** `AppContext.tsx` formatted sender addresses as `"Support Team" <alexharrisreal49@zohomail.com>`. Zoho Mail API requires `fromAddress`, `toAddress`, and `replyTo` to be bare email addresses without display names or angle brackets.
+  4. **Dropped Debug / Details Payload:** In `src/services/apiService.ts`, `sendEmailViaResend` failed to pass through `result.data?.details` on non-200 HTTP responses, stripping out the provider's protocol logs and error payload before reaching `AppContext` and `LiveLogsPage`.
+  5. **Direct Attachment Incompatibility:** Zoho Mail REST API does not allow raw attachment objects inside `POST /messages`. Attachments must be pre-uploaded via `POST /api/accounts/{accountId}/messages/attachments` to acquire file store references (`storeName`).
+- **Implemented Remediation:**
+  1. **Strict Payload Sanitization in `server/providers/zoho.ts`:**
+     - Created `extractPureEmail` helper to ensure `fromAddress`, `toAddress`, and `replyTo` are stripped of RFC display names and angle brackets.
+     - Stripped custom `headers` from `zohoBody` for Zoho Mail API, keeping the JSON body compliant with Zoho's exact Send Mail schema (`fromAddress`, `toAddress`, `subject`, `content`, `mailFormat`, `askReceipt`, `replyTo`, `attachments`).
+  2. **Numeric Account ID Discovery & Auto-Healing:**
+     - In `sendWithZoho`, added strict verification (`isNumericId`). If `zoho_account_id` is missing or contains an email string, it automatically queries `GET https://mail.{zohoDomain}/api/accounts` with the access token, matches the account by sender address, and extracts the real numeric `accountId`.
+     - Added background database auto-healing in `server.ts` and `functions/api/[[catchall]].ts` (`UPDATE neon_apis SET zoho_account_id = $1 WHERE id = $2`) to permanently persist the numeric ID and eliminate redundant lookups.
+     - In `ApisPage.tsx`, updated `handleSaveApiKey` and `handleUpdateApiKey` to only persist `zohoAccountId` when strictly numeric.
+  3. **Two-Step Attachment Upload Engine:**
+     - Implemented `uploadZohoAttachment` in `server/providers/zoho.ts`, converting attachment buffers to binary streams, uploading to `POST /api/accounts/{accountId}/messages/attachments?fileName=...`, and referencing the acquired `storeName` in the dispatch payload.
+  4. **Diagnostic Logs & Trace Preservation:**
+     - Updated `SendEmailResult` and `sendEmailViaResend` in `src/services/apiService.ts` to preserve and forward `details` on all dispatch responses.
+     - Enhanced `sendWithZoho` to record detailed step-by-step `protocolLogs` (`[INIT]`, `[AUTH]`, `[ACCOUNT]`, `[PAYLOAD]`, `[RESPONSE]`, `[ERROR]`) and return comprehensive error messages (`Zoho Mail API Error: ...`).
+     - Upgraded `LiveLogsPage.tsx` with an interactive, color-coded `🔍 Detailed Diagnostic & Protocol Logs` viewer that automatically opens on failed dispatches to provide instant root-cause clarity.
+- **Verification:**
+  - `lint_applet` (`tsc --noEmit`): 0 errors.
+  - `npx tsc -p functions/tsconfig.json --noEmit`: 0 errors.
+  - `compile_applet` (`vite build`): Succeeded.
+
+
 

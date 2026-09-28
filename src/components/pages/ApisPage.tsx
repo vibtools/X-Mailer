@@ -483,7 +483,7 @@ export const ApisPage: React.FC = () => {
         zohoClientId: connectProviderType === 'zoho' ? zohoClientId.trim() : undefined,
         zohoClientSecret: connectProviderType === 'zoho' ? zohoClientSecret.trim() : undefined,
         zohoRefreshToken: connectProviderType === 'zoho' ? zohoRefreshToken.trim() : undefined,
-        zohoAccountId: connectProviderType === 'zoho' ? (zohoAccountId.trim() || cleanSender) : undefined,
+        zohoAccountId: connectProviderType === 'zoho' ? (zohoAccountId && /^\d+$/.test(zohoAccountId.trim()) ? zohoAccountId.trim() : undefined) : undefined,
         zohoRegion: connectProviderType === 'zoho' ? (zohoRegion || 'com') : undefined,
       });
 
@@ -657,7 +657,7 @@ export const ApisPage: React.FC = () => {
         zohoClientId: editProviderType === 'zoho' ? editZohoClientId.trim() : undefined,
         zohoClientSecret: editProviderType === 'zoho' ? editZohoClientSecret.trim() : undefined,
         zohoRefreshToken: editProviderType === 'zoho' ? editZohoRefreshToken.trim() : undefined,
-        zohoAccountId: editProviderType === 'zoho' ? (editZohoAccountId.trim() || cleanSender) : undefined,
+        zohoAccountId: editProviderType === 'zoho' ? (editZohoAccountId && /^\d+$/.test(editZohoAccountId.trim()) ? editZohoAccountId.trim() : undefined) : undefined,
         zohoRegion: editProviderType === 'zoho' ? (editZohoRegion || 'com') : undefined,
         status: editTestResult?.tested
           ? (editTestResult.valid ? 'active' : 'error')

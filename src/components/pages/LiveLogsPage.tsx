@@ -362,11 +362,46 @@ export const LiveLogsPage: React.FC = () => {
                   >
                     {log.message}
                     {log.details && (
-                      <details className="mt-1 cursor-pointer">
-                        <summary className="text-[10px] text-slate-500 hover:text-slate-400 font-medium select-none">Show Details</summary>
-                        <pre className="mt-1 p-2 bg-slate-900 rounded border border-slate-800 overflow-x-auto text-[9.5px] font-mono text-slate-300 leading-tight cursor-text">
-                          {typeof log.details === 'string' ? log.details : JSON.stringify(log.details, null, 2)}
-                        </pre>
+                      <details className="mt-1.5 cursor-pointer group" open={!isSuccess}>
+                        <summary className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold select-none inline-flex items-center gap-1.5 cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/25 transition-colors">
+                          <span>🔍 Detailed Diagnostic & Protocol Logs</span>
+                        </summary>
+                        <div className="mt-1.5 p-2.5 bg-slate-900/90 rounded border border-slate-800 text-[10px] font-mono text-slate-300 space-y-1.5">
+                          {log.details.protocolLogs && Array.isArray(log.details.protocolLogs) && log.details.protocolLogs.length > 0 && (
+                            <div className="space-y-0.5 pb-1.5 border-b border-slate-800/80">
+                              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Protocol Trace:</span>
+                              {log.details.protocolLogs.map((step: string, idx: number) => {
+                                const isErr = step.includes('[ERROR]') || step.includes('[EXCEPTION]');
+                                const isWarn = step.includes('[WARN]');
+                                const isStepSuccess = step.includes('[SUCCESS]');
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`leading-relaxed ${
+                                      isErr ? 'text-rose-400 font-semibold' : isWarn ? 'text-amber-300' : isStepSuccess ? 'text-emerald-400' : 'text-slate-300'
+                                    }`}
+                                  >
+                                    {step}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Details & Server Data:</span>
+                            <pre className="mt-1 p-2 bg-slate-950 rounded border border-slate-800/80 overflow-x-auto text-[9.5px] leading-tight text-slate-300 cursor-text">
+                              {typeof log.details === 'string'
+                                ? log.details
+                                : JSON.stringify(
+                                    log.details.protocolLogs
+                                      ? { ...log.details, protocolLogs: undefined }
+                                      : log.details,
+                                    null,
+                                    2
+                                  )}
+                            </pre>
+                          </div>
+                        </div>
                       </details>
                     )}
                   </span>

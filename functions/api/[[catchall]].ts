@@ -2713,6 +2713,18 @@ export async function onRequest(context: EventContext): Promise<Response> {
 
         const result = await sendWithZoho(resolvedChannel, mailPayload as any);
 
+        // Auto-heal numeric accountId in neon_apis if discovered
+        if (result.details?.accountId && apiId && apiId !== 'temp' && apiId !== 'manual_channel') {
+          const numId = String(result.details.accountId).trim();
+          if (/^\d+$/.test(numId) && resolvedChannel.zoho_account_id !== numId) {
+            runQuery(
+              env,
+              `UPDATE neon_apis SET zoho_account_id = $1 WHERE id = $2`,
+              [numId, apiId]
+            ).catch(() => {});
+          }
+        }
+
         if (!result.success) {
           try {
             await runQuery(

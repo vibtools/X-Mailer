@@ -1754,7 +1754,6 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   6. `src/components/pages/TasksPage.tsx`: Added Zoho channel badge and sender identification in campaign channel selection.
   7. `src/context/AppContext.tsx`: Passed Zoho credentials in task queue email dispatches.
 - **Verification:** `lint_applet` (`tsc --noEmit`) and `compile_applet` validated with 0 errors. Full-stack dev server running smoothly.
-
 ### Session 35: Forensic Audit & Production Verification of Zoho Mail Integration (Scope Locked)
 - **Objective:** Perform exhaustive forensic verification, missing/mismatch/mistake audit, and production hardening on the newly integrated Zoho Mail OAuth / REST API system under strict Scope Lock without affecting any other feature.
 - **Audit Findings & Hardening Applied:**
@@ -1769,4 +1768,21 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   - `functions/tsconfig.json` (`npx tsc -p functions/tsconfig.json --noEmit`): 0 errors.
   - `compile_applet` (`vite build`): Built successfully.
   - Development server operational and verified.
+
+### Session 36: GitHub Actions CI Workflow Error Audit & Fix
+- **Objective:** Audit and fix the GitHub Action workflow failure in `actions/setup-node@v4` (`Error: Dependencies lock file is not found in ... Supported file patterns: package-lock.json,npm-shrinkwrap.json,yarn.lock`).
+- **Root Cause:**
+  1. `actions/setup-node@v4` with `cache: 'npm'` strictly requires a lockfile (`package-lock.json`) committed to the repository root. The root directory only contained `bun.lock` (which was already deprecated/incompatible) and lacked a committed `package-lock.json`.
+  2. The workflow step `npm ci` also fails immediately when `package-lock.json` is missing.
+- **Actions Taken:**
+  1. Generated a complete, clean `package-lock.json` using `npm i --package-lock-only` and verified local `npm ci` installation (245 packages audited, 0 vulnerabilities).
+  2. Removed obsolete `bun.lock` to prevent package manager confusion.
+  3. Added `"packageManager": "npm@10.9.2"` explicitly to `package.json` for deterministic CI and deployment package manager resolution.
+  4. Hardened `.github/workflows/ci.yml` dependency installation step with a resilient fallback (`if [ -f package-lock.json ]; then npm ci; else npm install; fi`).
+- **Verification:**
+  - `npm ci`: Succeeded (0 vulnerabilities).
+  - `npm run lint` (`tsc --noEmit`): 0 errors.
+  - `npx tsc -p functions/tsconfig.json --noEmit`: 0 errors.
+  - `npm run build`: Succeeded.
+  - `compile_applet`: Succeeded.
 

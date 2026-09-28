@@ -46,8 +46,10 @@ export function createTransporter(channel: EmailChannel, pooled = true): Transpo
     ? Boolean(channel.smtp_tls_reject_unauthorized)
     : !isLocalHost;
 
+  const host = channel.smtp_host?.trim();
+
   return nodemailer.createTransport({
-    host: channel.smtp_host?.trim(),
+    host,
     port,
     secure: isSecure,
     auth: {
@@ -58,12 +60,13 @@ export function createTransporter(channel: EmailChannel, pooled = true): Transpo
     maxConnections: 5,
     maxMessages: 100,
     rateDelta: 1000,
-    connectionTimeout: 12000,
-    greetingTimeout: 10000,
+    connectionTimeout: 15000,
+    greetingTimeout: 12000,
     socketTimeout: 30000,
     tls: {
       rejectUnauthorized,
       minVersion: "TLSv1.2",
+      servername: host,
     },
   });
 }
@@ -171,11 +174,12 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
     };
   }
 
+  const host = channel.smtp_host.trim();
   const port = Number(channel.smtp_port) || 587;
   const isSecure = channel.smtp_secure !== undefined ? Boolean(channel.smtp_secure) : port === 465;
 
   // TLS Configuration: Strict RFC/MTA-STS TLS certificate validation by default
-  const isLocalHost = channel.smtp_host.trim() === "localhost" || channel.smtp_host.trim() === "127.0.0.1";
+  const isLocalHost = host === "localhost" || host === "127.0.0.1";
   const rejectUnauthorized = channel.smtp_tls_reject_unauthorized !== undefined
     ? Boolean(channel.smtp_tls_reject_unauthorized)
     : !isLocalHost;
@@ -184,28 +188,30 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
   const debugLogs: string[] = [];
   const customLogger = {
     level: () => {},
-    trace: (...args: any[]) => debugLogs.push(`[TRACE] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
-    debug: (...args: any[]) => debugLogs.push(`[DEBUG] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
-    info: (...args: any[]) => debugLogs.push(`[INFO]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
-    warn: (...args: any[]) => debugLogs.push(`[WARN]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
-    error: (...args: any[]) => debugLogs.push(`[ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
-    fatal: (...args: any[]) => debugLogs.push(`[FATAL] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`),
+    trace: (...args: any[]) => debugLogs.push(`[TRACE] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
+    debug: (...args: any[]) => debugLogs.push(`[DEBUG] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
+    info: (...args: any[]) => debugLogs.push(`[INFO]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
+    warn: (...args: any[]) => debugLogs.push(`[WARN]  ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
+    error: (...args: any[]) => debugLogs.push(`[ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
+    fatal: (...args: any[]) => debugLogs.push(`[FATAL] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`),
   };
 
-  // For testing, use non-pooled standalone verification transporter
+  // For testing, use non-pooled standalone verification transporter with explicit SNI & robust timeouts
   const testTransporter = nodemailer.createTransport({
-    host: channel.smtp_host.trim(),
+    host,
     port,
     secure: isSecure,
     auth: {
       user: channel.smtp_user.trim(),
       pass: channel.smtp_pass || "",
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 8000,
+    connectionTimeout: 15000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
     tls: {
       rejectUnauthorized,
       minVersion: "TLSv1.2",
+      servername: host,
     },
     debug: true,
     logger: customLogger as any,
@@ -217,7 +223,7 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
 
     return {
       success: true,
-      message: `SMTP Handshake & Authentication Successful! Connected to ${channel.smtp_host}:${port} (${isSecure ? "SSL" : "TLS/STARTTLS"}).`,
+      message: `SMTP Handshake & Authentication Successful! Connected to ${host}:${port} (${isSecure ? "SSL / SMTPS" : "STARTTLS"}).`,
     };
   } catch (err: any) {
     try {
@@ -225,12 +231,14 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
     } catch {}
 
     let detailedMsg = err.message || "Unknown SMTP handshake failure";
-    if (err.code === "EAUTH") {
-      detailedMsg = "Authentication failed: Invalid SMTP username or password.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || (typeof err.message === "string" && err.message.includes("535"))) {
+      detailedMsg = "Authentication failed: Invalid SMTP username or password. For Zoho, Gmail, Outlook, or Yahoo, you must generate and use an App Password instead of your primary account password.";
     } else if (err.code === "ESOCKET" || err.code === "ETIMEDOUT") {
-      detailedMsg = `Connection timed out connecting to ${channel.smtp_host}:${port}. Please verify host and port.`;
+      detailedMsg = `Connection timed out connecting to ${host}:${port}. Verify hostname, port, and security (${isSecure ? "Port 465 with SSL" : "Port 587 with STARTTLS"}).`;
     } else if (err.code === "ECONNREFUSED") {
-      detailedMsg = `Connection refused at ${channel.smtp_host}:${port}. Ensure SMTP service is running and not blocked by firewall.`;
+      detailedMsg = `Connection refused at ${host}:${port}. Ensure the SMTP server is reachable and not blocked by network firewall.`;
+    } else if (err.code === "EENVELOPE") {
+      detailedMsg = `Envelope sender rejected by SMTP server: ${err.message}`;
     }
 
     return {
@@ -242,8 +250,11 @@ export async function verifySmtp(channel: EmailChannel): Promise<VerifyResult> {
         code: err.code,
         syscall: err.syscall,
         hostname: err.hostname,
-        protocolLogs: debugLogs,
+        response: err.response,
+        responseCode: err.responseCode,
+        protocolLogs: debugLogs.length > 0 ? debugLogs : [`[ERROR] ${err.message || 'Connection failed'}`],
       },
     };
   }
 }
+

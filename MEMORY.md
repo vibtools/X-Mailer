@@ -1707,3 +1707,36 @@ eon_users in server.ts. Committed and pushed the hotfix to the repository.
   3. Implemented the /api/smtp/verify route in the edge function, accurately mapping smtpHost and other UI variables.
   4. Adapted server/providers/smtp.ts to use import crypto from "node:crypto" instead of "crypto" so Wrangler bundles nodemailer successfully utilizing Cloudflare's new nodejs_compat socket capabilities.
 - **Verification:** tsc --noEmit and wrangler pages functions build completed successfully. Pushed changes to Git repository.
+
+### Session 31: GitHub Import Migration & Full-Stack Environment Audit
+- **Objective:** Finalize import verification for repository vibtools/X-Mailer, verify full-stack server configuration, type safety, build outputs, and runtime health.
+- **Actions Taken:**
+  1. Completed import triage and environment validation for the imported codebase.
+  2. Confirmed dependencies and runtime scripts (`npm run dev`, `npm run build`, `npm run lint`).
+  3. Verified `compile_applet` succeeds without errors.
+  4. Verified `lint_applet` (`tsc --noEmit`) passes with 0 errors.
+  5. Restarted and verified the full-stack development server running on port 3000.
+- **Verification:** Both compilation and type checking succeed; development server is healthy and active.
+
+### Session 32: SMTP System Forensic Audit & Cloudflare Pages Edge Integration Fix
+- **Objective:** Forensic audit of SMTP connection, TLS SNI negotiation, channel resolution on `/api/send`, and diagnostic debug logs rendering across Cloudflare Pages (`functions/api/[[catchall]].ts`), Node backend (`server.ts`, `server/providers/smtp.ts`), API service (`src/services/apiService.ts`), and UI (`ApisPage.tsx`).
+- **Vulnerabilities Found & Fixed:**
+  1. **Stripped Error Details & Protocol Logs on Cloudflare:** In `functions/api/[[catchall]].ts`, `/api/smtp/verify` called `errorResponse(result.error, 400)` which dropped `result.message` and `result.details.protocolLogs`, causing Screenshot 9 where only raw "ETIMEDOUT" appeared without logs. Fixed to preserve full response objects (`message`, `error`, `details.protocolLogs`, `details.errorMsg`).
+  2. **Missing Stored Channel DB Lookup in Cloudflare `/api/send`:** In `functions/api/[[catchall]].ts`, `/api/send` failed to look up `neon_apis` by `apiId` for SMTP dispatches, leaving SMTP host and credentials empty during task runs. Fixed by matching `server.ts` channel resolution logic with database query fallback.
+  3. **TLS SNI Negotiation on Cloudflare Sockets:** In `server/providers/smtp.ts`, added explicit `servername: host` in `tls` config so Cloudflare Workers TCP sockets negotiate TLS certificates properly with external mail providers (Zoho, Gmail, Amazon SES, SendGrid).
+  4. **Diagnostic Logs Terminal UI:** Upgraded Connect and Edit channel modals in `ApisPage.tsx` to render rich, scrollable terminal logs with highlighted error lines, status badges, and actionable guidance for common SMTP issues (such as App Password requirements for Zoho/Gmail on 535 errors).
+- **Verification:** `tsc --noEmit` and `npm run build` pass cleanly with 0 errors. Dev server verified and responsive.
+
+### Session 33: User & Admin Panel UI Icon Comprehensive Forensic Audit & Fix
+- **Objective:** Fix broken icons, garbled characters ("ulta palta vasa"), unstyled HTML entities (`&times;`, `✕`, `×`, `▼`, `▶`), and missing Lucide icons across both User Panel and Admin Panel.
+- **Root Cause:** Multiple components used raw HTML entities (`&times;`), unicode characters (`×`, `✕`, `▼`, `▶`, `⏸`, `⏭`, `⏹`, `💡`), or unimported SVG paths that rendered inconsistently or failed to display proper icon glyphs across browsers.
+- **Actions Taken:**
+  1. **Sender Channels / ApisPage.tsx:** Replaced `&times;` in Edit modal and Live Test Send modal with `<X className="w-4 h-4" />`. Replaced custom dropdown arrow `▼` with `<ChevronDown className="w-3.5 h-3.5" />`. Replaced `Get Key →` with `<ExternalLink className="w-2.5 h-2.5" />`.
+  2. **TasksPage.tsx:** Replaced raw symbols in task action buttons (`▶ Start`, `⏸ Pause`, `⏭ Resume`, `⏹ Stop`) with clean Lucide components (`<Play />`, `<Pause />`, `<Play />`, `<Square />`). Replaced custom SVG trash icon with `<Trash2 />`. Replaced `Recipients ▾` with `<ChevronDown />`. Replaced `&times;` in Create Task and Recipients modal headers with `<X className="w-4 h-4" />`.
+  3. **ContentPage.tsx:** Replaced `×` in attachment chips with `<X className="w-3 h-3" />`. Replaced `&times;` in Save Preset, Preview, and History Directory drawers with `<X className="w-4 h-4" />`. Replaced `✓` in RFC preview banner with `<Check className="w-3.5 h-3.5 text-emerald-400" />`.
+  4. **Deliverability Scanners (`DeliverabilityScannerCard.tsx` & `DeliverabilityScannerModal.tsx`):** Replaced raw `💡` with `<Lightbulb className="w-3 h-3 text-indigo-400" />`.
+  5. **Admin Pages (`AdminDomainsPage.tsx`, `AdminUsersPage.tsx`, `AdminContentPage.tsx`):** Replaced all instances of `✕`, `×`, and `&times;` in modal close buttons and attachment removal buttons with `<X className="w-4 h-4" />`.
+- **Verification:** `npm run lint` (`tsc --noEmit`) and `npm run build` validated with 0 errors. All icons across User & Admin panels render using Lucide SVG components.
+
+
+

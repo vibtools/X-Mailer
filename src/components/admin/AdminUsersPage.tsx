@@ -8,6 +8,7 @@ import {
   Power,
   Check,
   Globe,
+  X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AppUser } from '../../types';
@@ -387,8 +388,12 @@ export const AdminUsersPage: React.FC = () => {
                 <Users className="w-3.5 h-3.5 text-amber-400" />
                 <span>Add User</span>
               </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white text-xs">
-                ✕
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -571,8 +576,12 @@ export const AdminUsersPage: React.FC = () => {
                 <Edit2 className="w-3.5 h-3.5 text-amber-400" />
                 <span>Edit User</span>
               </h3>
-              <button onClick={() => setEditingUser(null)} className="text-slate-400 hover:text-white text-xs">
-                ✕
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 

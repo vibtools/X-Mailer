@@ -10,9 +10,11 @@ import {
   Search,
   Plus,
   BookmarkPlus,
-  FolderOpen, Copy,
+  FolderOpen,
+  Copy,
   RefreshCw,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { uploadFileToStorage } from '../../services/apiService';
@@ -603,9 +605,9 @@ export const ContentPage: React.FC = () => {
                     type="button"
                     onClick={() => removeAttachment(file.id)}
                     title="Remove"
-                    className="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer text-sm font-bold ml-1"
+                    className="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-0.5 ml-1 flex items-center justify-center"
                   >
-                    ×
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               ))
@@ -671,9 +673,9 @@ export const ContentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsSavePresetModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -756,9 +758,9 @@ export const ContentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPreviewModalOpen(false)}
-                className="text-slate-400 hover:text-white text-base leading-none"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className={`p-4 overflow-y-auto flex-1 ${previewTab === 'html' ? 'bg-white text-slate-900' : 'bg-slate-950 text-slate-100 font-mono text-xs'}`}>
@@ -785,7 +787,10 @@ export const ContentPage: React.FC = () => {
                   return (
                     <div className="space-y-3">
                       <div className="bg-slate-900 border border-slate-800 p-2.5 rounded text-[11px] text-slate-400 flex items-center justify-between">
-                        <span className="text-emerald-400 font-semibold">✓ RFC 2046 Alternative MIME Part</span>
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>RFC 2046 Alternative MIME Part</span>
+                        </span>
                         <span className="text-slate-500">MIME Type: text/plain; charset=utf-8</span>
                       </div>
                       <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-200 bg-slate-900/60 p-3 rounded border border-slate-800">
@@ -828,9 +833,9 @@ export const ContentPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="text-slate-400 hover:text-white text-base leading-none"
+            className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
           >
-            &times;
+            <X className="w-4 h-4" />
           </button>
         </div>
 

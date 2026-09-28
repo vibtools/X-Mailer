@@ -11,6 +11,7 @@ import {
   Info,
   Flame,
   FileCheck,
+  Lightbulb,
 } from 'lucide-react';
 import { DeliverabilityReport, scanDeliverability } from '../../utils/deliverabilityScanner';
 
@@ -221,8 +222,9 @@ export const DeliverabilityScannerCard: React.FC<DeliverabilityScannerCardProps>
                     </div>
                   </div>
                   {chk.advice && (
-                    <div className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800/80 font-mono">
-                      💡 {chk.advice}
+                    <div className="text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800/80 font-mono flex items-center gap-1">
+                      <Lightbulb className="w-3 h-3 text-indigo-400 shrink-0" />
+                      <span>{chk.advice}</span>
                     </div>
                   )}
                 </div>

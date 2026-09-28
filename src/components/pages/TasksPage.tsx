@@ -5,6 +5,12 @@ import {
   Download,
   AlertCircle,
   CheckCircle2,
+  Play,
+  Pause,
+  Square,
+  Trash2,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { TaskItem, EmailRecipient } from '../../types';
@@ -295,9 +301,10 @@ export const TasksPage: React.FC = () => {
                           setRecipientFilter('all');
                           setRecipientSearch('');
                         }}
-                        className="bg-[#1a2234] border border-[#1e293b] hover:border-[#3b82f6] text-[#f8fafc] px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all"
+                        className="bg-[#1a2234] border border-[#1e293b] hover:border-[#3b82f6] text-[#f8fafc] px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all inline-flex items-center gap-1"
                       >
-                        Recipients ▾
+                        <span>Recipients</span>
+                        <ChevronDown className="w-3 h-3 text-[#94a3b8]" />
                       </button>
 
                       <button
@@ -306,9 +313,7 @@ export const TasksPage: React.FC = () => {
                         className="w-[26px] h-[26px] rounded border border-[#1e293b] text-[#94a3b8] hover:text-[#ef4444] hover:border-[#ef4444]/40 hover:bg-[#ef4444]/10 inline-flex items-center justify-center cursor-pointer transition-all p-0"
                         title="Delete Task"
                       >
-                        <svg className="w-[13px] h-[13px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
-                        </svg>
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -356,9 +361,10 @@ export const TasksPage: React.FC = () => {
                         type="button"
                         onClick={() => startTask(task.id)}
                         disabled={isRunning || task.stats.remaining === 0}
-                        className="bg-[#1a2234] border border-[#3b82f6]/40 text-[#93c5fd] hover:bg-[#3b82f6]/15 hover:border-[#3b82f6] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        className="bg-[#1a2234] border border-[#3b82f6]/40 text-[#93c5fd] hover:bg-[#3b82f6]/15 hover:border-[#3b82f6] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                       >
-                        ▶ Start
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Start</span>
                       </button>
 
                       {/* Pause */}
@@ -366,9 +372,10 @@ export const TasksPage: React.FC = () => {
                         type="button"
                         onClick={() => pauseTask(task.id)}
                         disabled={!isRunning}
-                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                       >
-                        ⏸ Pause
+                        <Pause className="w-3 h-3 fill-current" />
+                        <span>Pause</span>
                       </button>
 
                       {/* Resume */}
@@ -376,9 +383,10 @@ export const TasksPage: React.FC = () => {
                         type="button"
                         onClick={() => resumeTask(task.id)}
                         disabled={!isPaused}
-                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                       >
-                        ⏭ Resume
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Resume</span>
                       </button>
 
                       {/* Stop */}
@@ -386,9 +394,10 @@ export const TasksPage: React.FC = () => {
                         type="button"
                         onClick={() => stopTask(task.id)}
                         disabled={!isRunning && !isPaused}
-                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                        className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] hover:bg-[#222d42] hover:border-[#334155] hover:text-white px-2.5 py-1 rounded text-[11px] font-medium cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                       >
-                        ⏹ Stop
+                        <Square className="w-3 h-3 fill-current" />
+                        <span>Stop</span>
                       </button>
                     </div>
 
@@ -436,9 +445,9 @@ export const TasksPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-[#94a3b8] hover:text-[#f8fafc] text-base leading-none cursor-pointer"
+                className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -651,9 +660,9 @@ export const TasksPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveRecipientsTaskId(null)}
-                    className="text-[#94a3b8] hover:text-[#f8fafc] text-base leading-none cursor-pointer p-0.5"
+                    className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors p-0.5"
                   >
-                    &times;
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>

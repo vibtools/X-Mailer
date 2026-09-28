@@ -7,6 +7,7 @@ import {
   RefreshCw,
   X,
   Check,
+  Lightbulb,
 } from 'lucide-react';
 import { DeliverabilityReport, scanDeliverability } from '../../utils/deliverabilityScanner';
 import { useApp } from '../../context/AppContext';
@@ -397,8 +398,8 @@ export const DeliverabilityScannerModal: React.FC<DeliverabilityScannerModalProp
                       </div>
 
                       {!isPass && chk.advice && (
-                        <div className="text-[10px] text-slate-300 bg-slate-900/90 px-2 py-1 rounded border border-slate-800/80 font-mono flex items-start gap-1">
-                          <span className="text-indigo-400 shrink-0">💡</span>
+                        <div className="text-[10px] text-slate-300 bg-slate-900/90 px-2 py-1 rounded border border-slate-800/80 font-mono flex items-start gap-1.5">
+                          <Lightbulb className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
                           <span>{chk.advice}</span>
                         </div>
                       )}

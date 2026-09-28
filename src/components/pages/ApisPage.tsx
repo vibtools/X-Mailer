@@ -9,6 +9,17 @@ import {
   Eye,
   EyeOff,
   Key,
+  Plus,
+  Search,
+  Check,
+  Copy,
+  Edit2,
+  Trash2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Activity,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ResendApiKey } from '../../types';
@@ -547,9 +558,10 @@ export const ApisPage: React.FC = () => {
                 setModalTestResult(null);
                 setIsConnectModalOpen(true);
               }}
-              className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-none px-[12px] py-[5px] rounded-[5px] text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1 transition-colors"
+              className="bg-[#8b5cf6] hover:bg-[#7c3aed] text-white border-none px-[12px] py-[5px] rounded-[5px] text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1.5 transition-colors"
             >
-              <span>+ Connect API Key</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Connect Channel</span>
             </button>
           </div>
         </div>
@@ -567,7 +579,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#94a3b8] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              Ã°Å¸â€â€˜
+              <Key className="w-3.5 h-3.5 text-slate-400" />
             </div>
           </div>
 
@@ -582,7 +594,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#10b981] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              ✔️
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             </div>
           </div>
 
@@ -597,7 +609,7 @@ export const ApisPage: React.FC = () => {
               </div>
             </div>
             <div className="text-[#3b82f6] w-[26px] h-[26px] rounded-[5px] bg-[#1a2234] flex items-center justify-center text-xs border border-[#1e293b]">
-              📊
+              <Activity className="w-3.5 h-3.5 text-indigo-400" />
             </div>
           </div>
         </div>
@@ -606,8 +618,8 @@ export const ApisPage: React.FC = () => {
         <div className="flex justify-between items-center gap-2.5 mb-2.5 flex-wrap">
           <div className="flex items-center gap-2 flex-1 min-w-[240px]">
             <div className="relative flex-1 max-w-[280px]">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-[#94a3b8] pointer-events-none">
-                Ã°Å¸â€Â
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
+                <Search className="w-3.5 h-3.5" />
               </span>
               <input
                 type="text"
@@ -617,7 +629,7 @@ export const ApisPage: React.FC = () => {
                   setCurrentPage(1);
                 }}
                 placeholder="Search API or email..."
-                className="w-full bg-[#1a2234] border border-[#1e293b] rounded-[5px] py-[5px] pr-2.5 pl-[26px] text-[11px] text-[#f8fafc] outline-none transition-colors focus:border-[#3b82f6]"
+                className="w-full bg-[#1a2234] border border-[#1e293b] rounded-[5px] py-[5px] pr-2.5 pl-8 text-[11px] text-[#f8fafc] outline-none transition-colors focus:border-[#3b82f6]"
               />
             </div>
             <select
@@ -749,12 +761,9 @@ export const ApisPage: React.FC = () => {
                               title="Copy SMTP host"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">✔️</span>
+                                <Check className="w-3 h-3 text-[#10b981]" />
                               ) : (
-                                <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                </svg>
+                                <Copy className="w-3 h-3 text-[#94a3b8] hover:text-[#f8fafc]" />
                               )}
                             </button>
                           </div>
@@ -768,12 +777,9 @@ export const ApisPage: React.FC = () => {
                               title="Copy API Key"
                             >
                               {copiedId === item.id ? (
-                                <span className="text-[10px] text-[#10b981] font-semibold">✔️</span>
+                                <Check className="w-3 h-3 text-[#10b981]" />
                               ) : (
-                                <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                                </svg>
+                                <Copy className="w-3 h-3 text-[#94a3b8] hover:text-[#f8fafc]" />
                               )}
                             </button>
                           </div>
@@ -839,7 +845,8 @@ export const ApisPage: React.FC = () => {
                             className="bg-[#1a2234] border border-[#1e293b] hover:border-[#334155] hover:bg-[#222d42] text-[#10b981] py-[3px] px-[7px] rounded-[4px] text-[10.5px] font-medium cursor-pointer inline-flex items-center gap-1 transition-all"
                             title="Send live test email"
                           >
-                            <span>→ Test</span>
+                            <Send className="w-2.5 h-2.5" />
+                            <span>Test</span>
                           </button>
 
                           <button
@@ -872,10 +879,7 @@ export const ApisPage: React.FC = () => {
                             className="bg-[#1a2234] border border-[#1e293b] hover:border-[#334155] hover:bg-[#222d42] text-[#38bdf8] py-[3px] px-[7px] rounded-[4px] text-[10.5px] font-medium cursor-pointer inline-flex items-center gap-1 transition-all"
                             title="Edit channel settings"
                           >
-                            <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
+                            <Edit2 className="w-3 h-3" />
                           </button>
 
                           <button
@@ -884,9 +888,7 @@ export const ApisPage: React.FC = () => {
                             className="bg-transparent border border-[#1e293b] text-[#94a3b8] hover:text-[#ef4444] hover:border-[#ef4444]/40 hover:bg-[#ef4444]/10 w-[22px] h-[22px] rounded-[4px] inline-flex items-center justify-center cursor-pointer transition-all p-0"
                             title="Delete channel"
                           >
-                            <svg className="w-[11px] h-[11px]" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
-                            </svg>
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
@@ -908,9 +910,10 @@ export const ApisPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={validCurrentPage === 1}
-              className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
+              className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6] inline-flex items-center gap-1"
             >
-              ‹ Prev
+              <ChevronLeft className="w-3 h-3" />
+              <span>Prev</span>
             </button>
             <span className="font-mono px-1">
               {validCurrentPage} / {totalPages}
@@ -919,9 +922,10 @@ export const ApisPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={validCurrentPage === totalPages || totalPages === 0}
-              className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6]"
+              className="bg-[#1a2234] border border-[#1e293b] text-[#f8fafc] py-[3px] px-2 rounded-[4px] text-[10.5px] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:bg-[#222d42] hover:not-disabled:border-[#3b82f6] inline-flex items-center gap-1"
             >
-              Next ›
+              <span>Next</span>
+              <ChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -947,9 +951,9 @@ export const ApisPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsConnectModalOpen(false)}
-                className="text-[#94a3b8] hover:text-[#f8fafc] text-lg leading-none cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
+                className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -972,8 +976,8 @@ export const ApisPage: React.FC = () => {
                       <option value="resend">Resend API</option>
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      ▼
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] flex items-center">
+                      <ChevronDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
                 </div>
@@ -1019,9 +1023,10 @@ export const ApisPage: React.FC = () => {
                         href="https://resend.com/api-keys"
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[10px] text-[#38bdf8] hover:underline"
+                        className="text-[10px] text-[#38bdf8] hover:underline inline-flex items-center gap-1"
                       >
-                        Get Key →
+                        <span>Get Key</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
                       </a>
                     </div>
                     <div className="relative flex items-center">
@@ -1258,27 +1263,51 @@ export const ApisPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setShowModalDebug(!showModalDebug)}
-                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1"
+                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1 font-medium"
                           >
-                            {showModalDebug ? 'Hide Debug Logs' : 'View Debug Logs'}
+                            {showModalDebug ? 'Hide Diagnostic Logs' : 'View Diagnostic Logs'}
                           </button>
                           {showModalDebug && (
-                            <div className="mt-1.5 p-2 bg-[#0f172a] rounded-[4px] border border-[#1e293b] overflow-x-auto">
+                            <div className="mt-1.5 p-2.5 bg-[#090d16] rounded-[5px] border border-[#1e293b] overflow-x-auto max-h-52 font-mono text-[10px]">
                               {modalTestResult.error && (
-                                <p className="text-[10px] font-mono text-red-400 mb-1 font-semibold">{modalTestResult.error}</p>
+                                <div className="mb-1.5 pb-1 border-b border-[#1e293b] flex items-center gap-1.5">
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-red-950/80 text-red-400 border border-red-800/40 uppercase font-bold">
+                                    Code: {modalTestResult.error}
+                                  </span>
+                                </div>
                               )}
-                              {modalTestResult.details && (
-                                <pre className="text-[9.5px] font-mono text-slate-300 leading-tight">
+                              {modalTestResult.details?.protocolLogs && Array.isArray(modalTestResult.details.protocolLogs) ? (
+                                <div className="space-y-0.5 text-[#94a3b8]">
+                                  {modalTestResult.details.protocolLogs.map((log: string, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className={`whitespace-pre-wrap break-all ${
+                                        log.includes('[ERROR]') || log.includes('535') || log.includes('fail')
+                                          ? 'text-red-400 font-semibold'
+                                          : log.includes('[INFO]')
+                                          ? 'text-cyan-400'
+                                          : 'text-slate-300'
+                                      }`}
+                                    >
+                                      {log}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : modalTestResult.details ? (
+                                <pre className="text-[9.5px] text-slate-300 whitespace-pre-wrap break-all leading-tight">
                                   {typeof modalTestResult.details === 'string'
                                     ? modalTestResult.details
                                     : JSON.stringify(modalTestResult.details, null, 2)}
                                 </pre>
+                              ) : (
+                                <div className="text-slate-400 italic">No additional protocol logs recorded.</div>
                               )}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
+
                   </div>
                 )}
               </div>
@@ -1343,9 +1372,9 @@ export const ApisPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setApiToEdit(null)}
-                className="text-[#94a3b8] hover:text-[#f8fafc] text-lg leading-none cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
+                className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1368,8 +1397,8 @@ export const ApisPage: React.FC = () => {
                       <option value="resend">Resend API</option>
                       <option value="smtp">Custom SMTP Relay</option>
                     </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] text-xs">
-                      ▼
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94a3b8] flex items-center">
+                      <ChevronDown className="w-3.5 h-3.5" />
                     </div>
                   </div>
                 </div>
@@ -1413,9 +1442,10 @@ export const ApisPage: React.FC = () => {
                         href="https://resend.com/api-keys"
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[10px] text-[#38bdf8] hover:underline"
+                        className="text-[10px] text-[#38bdf8] hover:underline inline-flex items-center gap-1"
                       >
-                        Get Key →
+                        <span>Get Key</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
                       </a>
                     </div>
                     <div className="relative flex items-center">
@@ -1641,27 +1671,51 @@ export const ApisPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setShowEditDebug(!showEditDebug)}
-                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1"
+                            className="text-[10px] text-[#ef4444] hover:text-[#f87171] underline underline-offset-2 flex items-center gap-1 font-medium"
                           >
-                            {showEditDebug ? 'Hide Debug Logs' : 'View Debug Logs'}
+                            {showEditDebug ? 'Hide Diagnostic Logs' : 'View Diagnostic Logs'}
                           </button>
                           {showEditDebug && (
-                            <div className="mt-1.5 p-2 bg-[#0f172a] rounded-[4px] border border-[#1e293b] overflow-x-auto">
+                            <div className="mt-1.5 p-2.5 bg-[#090d16] rounded-[5px] border border-[#1e293b] overflow-x-auto max-h-52 font-mono text-[10px]">
                               {editTestResult.error && (
-                                <p className="text-[10px] font-mono text-red-400 mb-1 font-semibold">{editTestResult.error}</p>
+                                <div className="mb-1.5 pb-1 border-b border-[#1e293b] flex items-center gap-1.5">
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-red-950/80 text-red-400 border border-red-800/40 uppercase font-bold">
+                                    Code: {editTestResult.error}
+                                  </span>
+                                </div>
                               )}
-                              {editTestResult.details && (
-                                <pre className="text-[9.5px] font-mono text-slate-300 leading-tight">
+                              {editTestResult.details?.protocolLogs && Array.isArray(editTestResult.details.protocolLogs) ? (
+                                <div className="space-y-0.5 text-[#94a3b8]">
+                                  {editTestResult.details.protocolLogs.map((log: string, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className={`whitespace-pre-wrap break-all ${
+                                        log.includes('[ERROR]') || log.includes('535') || log.includes('fail')
+                                          ? 'text-red-400 font-semibold'
+                                          : log.includes('[INFO]')
+                                          ? 'text-cyan-400'
+                                          : 'text-slate-300'
+                                      }`}
+                                    >
+                                      {log}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : editTestResult.details ? (
+                                <pre className="text-[9.5px] text-slate-300 whitespace-pre-wrap break-all leading-tight">
                                   {typeof editTestResult.details === 'string'
                                     ? editTestResult.details
                                     : JSON.stringify(editTestResult.details, null, 2)}
                                 </pre>
+                              ) : (
+                                <div className="text-slate-400 italic">No additional protocol logs recorded.</div>
                               )}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
+
                   </div>
                 )}
               </div>
@@ -1761,9 +1815,9 @@ export const ApisPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTestSendModalApi(null)}
-                className="text-[#94a3b8] hover:text-[#f8fafc] text-base leading-none cursor-pointer"
+                className="text-[#94a3b8] hover:text-[#f8fafc] cursor-pointer w-6 h-6 flex items-center justify-center rounded hover:bg-[#1e293b] transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 

@@ -13,6 +13,7 @@ import {
   Cloud,
   Layers,
   Check,
+  X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { RegisteredDomain, DomainType, DomainStatus } from '../../types';
@@ -406,9 +407,9 @@ export const AdminDomainsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-white text-xs"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -492,9 +493,9 @@ export const AdminDomainsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditingDomain(null)}
-                className="text-slate-400 hover:text-white text-xs"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

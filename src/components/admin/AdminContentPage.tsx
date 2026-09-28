@@ -12,8 +12,11 @@ import {
   Paperclip,
   CheckCircle2,
   AlertCircle,
-  FolderOpen, Copy, RefreshCw,
+  FolderOpen,
+  Copy,
+  RefreshCw,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { uploadFileToStorage, sendEmailViaResend } from '../../services/apiService';
@@ -627,9 +630,10 @@ export const AdminContentPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => removeAttachment(file.id)}
-                        className="text-slate-500 hover:text-rose-400 transition-colors text-sm font-bold ml-1"
+                        className="text-slate-500 hover:text-rose-400 transition-colors p-0.5 ml-1 flex items-center justify-center cursor-pointer"
+                        title="Remove attachment"
                       >
-                        ×
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))
@@ -904,9 +908,9 @@ export const AdminContentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPresetModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1003,9 +1007,9 @@ export const AdminContentPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 overflow-y-auto bg-white text-slate-900 flex-1">

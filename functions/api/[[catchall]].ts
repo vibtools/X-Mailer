@@ -2525,40 +2525,74 @@ export async function onRequest(context: EventContext): Promise<Response> {
         trackClicks,
       } = body;
 
-      const key = apiKey || directKey;
+      const recipientList: string[] = Array.isArray(to) ? to : [to];
+      const recipientSummary = recipientList.join(", ");
       const rawReplyTo = replyTo || reply_to;
       const plainText =
         text && typeof text === "string" && text.trim().length > 0
           ? text
           : (html && typeof html === "string" && html.trim().length > 0 ? htmlToPlainText(html) : undefined);
 
-      const resolvedProvider =
-        providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend");
+      // Build unified channel descriptor
+      let resolvedChannel: EmailChannel = {
+        id: apiId || "temp",
+        name: apiName || "Direct Channel",
+        provider_type: (providerType || provider_type || (body.smtpHost || body.smtp_host ? "smtp" : "resend")) as "resend" | "smtp",
+        key: apiKey || directKey || "",
+        sender_email: String(from || body.smtpUser || body.smtp_user || "").trim(),
+        smtp_host: body.smtpHost || body.smtp_host,
+        smtp_port: body.smtpPort || body.smtp_port ? Number(body.smtpPort || body.smtp_port) : 587,
+        smtp_secure: body.smtpSecure !== undefined ? Boolean(body.smtpSecure) : (body.smtp_secure !== undefined ? Boolean(body.smtp_secure) : undefined),
+        smtp_user: body.smtpUser || body.smtp_user,
+        smtp_pass: body.smtpPass || body.smtp_pass,
+      };
 
-      if (resolvedProvider === "smtp") {
-        const channel: EmailChannel = {
-          id: apiId || "temp",
-          name: apiName || "Custom SMTP",
-          provider_type: "smtp",
-          sender_email: String(from || body.smtpUser || body.smtp_user || "").trim(),
-          smtp_host: body.smtpHost || body.smtp_host,
-          smtp_port: body.smtpPort || body.smtp_port || 587,
-          smtp_secure: body.smtpSecure !== undefined ? body.smtpSecure : body.smtp_secure,
-          smtp_user: body.smtpUser || body.smtp_user,
-          smtp_pass: body.smtpPass || body.smtp_pass,
-        };
+      // Resolve stored channel from Neon DB if apiId provided
+      if (apiId) {
+        try {
+          const dbRows = await runQuery(
+            env,
+            `SELECT * FROM neon_apis WHERE id = $1 LIMIT 1`,
+            [apiId],
+          );
+          if (dbRows && dbRows.length > 0) {
+            const r = dbRows[0];
+            resolvedChannel = {
+              id: r.id,
+              name: r.name,
+              provider_type: r.provider_type || "resend",
+              key: r.key || "",
+              sender_email: r.sender_email || String(from || "").trim(),
+              smtp_host: r.smtp_host || "",
+              smtp_port: Number(r.smtp_port) || 587,
+              smtp_secure: Boolean(r.smtp_secure),
+              smtp_user: r.smtp_user || "",
+              smtp_pass: r.smtp_pass || "",
+            };
+          }
+        } catch {}
+      }
+
+      if (resolvedChannel.provider_type === "smtp") {
+        if (!resolvedChannel.smtp_host || !resolvedChannel.smtp_user) {
+          return errorResponse("SMTP host and username are required for SMTP dispatch.", 400);
+        }
 
         const mailPayload = {
-          from: String(from).trim(),
-          to: Array.isArray(to) ? to : [to],
-          subject: String(subject),
+          from: String(from || resolvedChannel.sender_email).trim(),
+          to: recipientList,
+          subject: String(subject || "Notification"),
           html: html,
           text: plainText,
           reply_to: rawReplyTo,
           headers: headers && typeof headers === "object" ? headers : undefined,
+          attachments: attachments && Array.isArray(attachments) ? attachments.map((att: any) => ({
+            filename: att.filename || att.name || "attachment",
+            content: att.content || att.base64Content,
+          })) : undefined,
         };
 
-        const result = await sendWithSmtp(channel, mailPayload as any);
+        const result = await sendWithSmtp(resolvedChannel, mailPayload as any);
 
         if (!result.success) {
           try {
@@ -2568,16 +2602,21 @@ export async function onRequest(context: EventContext): Promise<Response> {
                VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, NOW())`,
               [
                 `log_${Date.now()}`,
-                `Failed sending via SMTP to ${to}: ${result.error}`,
+                `Failed sending via SMTP to ${recipientSummary}: ${result.error}`,
                 taskId || null,
                 taskName || null,
-                apiName || null,
-                Array.isArray(to) ? to.join(", ") : to,
+                resolvedChannel.name,
+                recipientSummary,
                 JSON.stringify(result),
               ],
             );
           } catch {}
-          return errorResponse(result.error || "Failed to send email via SMTP", 500, result);
+          return jsonResponse({
+            success: false,
+            error: result.error || "Failed to send email via SMTP",
+            provider: "smtp",
+            details: result.details,
+          }, 400);
         }
 
         try {
@@ -2587,11 +2626,11 @@ export async function onRequest(context: EventContext): Promise<Response> {
              VALUES ($1, 'success', $2, $3, $4, $5, $6, $7, NOW())`,
             [
               `log_${Date.now()}`,
-              `Delivered via SMTP to ${Array.isArray(to) ? to.join(", ") : to} [ID: ${result.messageId}]`,
+              `Delivered via SMTP to ${recipientSummary} [ID: ${result.messageId}]`,
               taskId || null,
               taskName || null,
-              apiName || null,
-              Array.isArray(to) ? to.join(", ") : to,
+              resolvedChannel.name,
+              recipientSummary,
               JSON.stringify({ id: result.messageId, provider: "smtp" }),
             ],
           );
@@ -2600,13 +2639,14 @@ export async function onRequest(context: EventContext): Promise<Response> {
         return jsonResponse({
           success: true,
           id: result.messageId,
-          message: "Email dispatched successfully via SMTP",
-          provider: "smtp"
+          message: `Delivered successfully via SMTP (ID: ${result.messageId})`,
+          provider: "smtp",
         });
       }
 
+      const key = resolvedChannel.key;
       if (!key) return errorResponse("Resend API key is required", 400);
-      if (!to || !from || !subject)
+      if (!recipientSummary || !from || !subject)
         return errorResponse("From, to, and subject are required", 400);
 
       const cleanFrom = String(from).trim();
@@ -2617,7 +2657,6 @@ export async function onRequest(context: EventContext): Promise<Response> {
         );
       }
 
-      const recipientList: string[] = Array.isArray(to) ? to : [to];
       const isAutoReplyTo = autoReplyTo !== false;
 
       // Query neon_settings for deliverability defaults
@@ -2661,7 +2700,7 @@ export async function onRequest(context: EventContext): Promise<Response> {
       // RFC-8058 One-Click List-Unsubscribe Header Generation & Auto-Reply-To Resolution
       const requestOrigin = url.origin;
       const antiSpam = generateAntiSpamHeaders({
-        fromEmail: from,
+        fromEmail: cleanFrom,
         recipientEmail: recipientList[0] || "",
         replyTo: rawReplyTo,
         autoReplyTo: isAutoReplyTo,
@@ -2684,7 +2723,7 @@ export async function onRequest(context: EventContext): Promise<Response> {
       if (attachments && attachments.length > 0) {
         payload.attachments = attachments.map((a: any) => ({
           filename: a.filename || a.name || "attachment",
-          content: a.content || "",
+          content: a.content || a.base64Content || "",
         }));
       }
 
@@ -2708,11 +2747,11 @@ export async function onRequest(context: EventContext): Promise<Response> {
              VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, NOW())`,
             [
               `log_${Date.now()}`,
-              `Failed sending to ${to}: ${resData.message || "Resend error"}`,
+              `Failed sending to ${recipientSummary}: ${resData.message || "Resend error"}`,
               taskId || null,
               taskName || null,
-              apiName || null,
-              Array.isArray(to) ? to.join(", ") : to,
+              resolvedChannel.name,
+              recipientSummary,
               JSON.stringify(resData),
             ],
           );
@@ -2733,11 +2772,11 @@ export async function onRequest(context: EventContext): Promise<Response> {
            VALUES ($1, 'success', $2, $3, $4, $5, $6, $7, NOW())`,
           [
             `log_${Date.now()}`,
-            `Delivered to ${Array.isArray(to) ? to.join(", ") : to} [ID: ${resData.id}]${payload.reply_to ? ` [Reply-To: ${payload.reply_to}]` : ""}`,
+            `Delivered to ${recipientSummary} [ID: ${resData.id}]${payload.reply_to ? ` [Reply-To: ${payload.reply_to}]` : ""}`,
             taskId || null,
             taskName || null,
-            apiName || null,
-            Array.isArray(to) ? to.join(", ") : to,
+            resolvedChannel.name,
+            recipientSummary,
             JSON.stringify({ id: resData.id, replyTo: payload.reply_to, hasUnsubscribeHeader: !!payload.headers?.["List-Unsubscribe"] }),
           ],
         );
@@ -2747,31 +2786,55 @@ export async function onRequest(context: EventContext): Promise<Response> {
         success: true,
         id: resData.id,
         replyTo: payload.reply_to,
-        message: "Email dispatched successfully",
+        message: "Email dispatched successfully via Resend",
       });
     }
 
     if (method === "POST" && path === "/api/smtp/verify") {
-      const { smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = body;
+      const {
+        smtpHost,
+        smtp_host,
+        smtpPort,
+        smtp_port,
+        smtpSecure,
+        smtp_secure,
+        smtpUser,
+        smtp_user,
+        smtpPass,
+        smtp_pass,
+        senderEmail,
+      } = body;
+
+      const host = (smtpHost || smtp_host || "").trim();
+      const port = Number(smtpPort || smtp_port) || 587;
+      const secure = smtpSecure !== undefined ? Boolean(smtpSecure) : (smtp_secure !== undefined ? Boolean(smtp_secure) : port === 465);
+      const user = (smtpUser || smtp_user || "").trim();
+      const pass = smtpPass !== undefined ? smtpPass : (smtp_pass || "");
+
+      if (!host || !user) {
+        return jsonResponse({
+          success: false,
+          message: "SMTP Host and Username are required for verification",
+          error: "MISSING_REQUIRED_FIELDS",
+        }, 400);
+      }
+
       const channel: EmailChannel = {
-        id: "verify",
-        name: "verify",
+        id: "verify_probe",
+        name: "Verify Probe",
         provider_type: "smtp",
-        sender_email: String(smtpUser || body.user || "").trim(),
-        smtp_host: smtpHost || body.host,
-        smtp_port: smtpPort || body.port,
-        smtp_secure: smtpSecure !== undefined ? smtpSecure : body.secure,
-        smtp_user: smtpUser || body.user,
-        smtp_pass: smtpPass || body.pass,
+        sender_email: String(senderEmail || user).trim(),
+        smtp_host: host,
+        smtp_port: port,
+        smtp_secure: secure,
+        smtp_user: user,
+        smtp_pass: pass,
       };
       
       const result = await verifySmtp(channel);
-      if (result.success) {
-        return jsonResponse({ success: true, message: "SMTP configuration is valid" });
-      } else {
-        return errorResponse(result.error || "Failed to verify SMTP configuration", 400);
-      }
+      return jsonResponse(result, result.success ? 200 : 400);
     }
+
 
 
     // 404 For Unmatched API Routes

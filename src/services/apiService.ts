@@ -310,15 +310,23 @@ export async function verifySmtpChannelApi(config: {
     },
     "/api/smtp/verify"
   );
-  if (!result.ok || !result.data) {
+  if (!result.data) {
     return {
       success: false,
       message: result.error || "Failed to reach SMTP verification endpoint",
       error: result.error,
+      details: null,
     };
   }
-  return result.data;
+  const data = result.data;
+  return {
+    success: data.success === true,
+    message: data.message || (data.success ? "SMTP connection successful" : (data.error || result.error || "SMTP verification failed")),
+    error: data.error || (data.success ? undefined : result.error),
+    details: data.details || (data.error || result.error ? { errorMsg: data.error || result.error } : null),
+  };
 }
+
 
 export async function updateApiInDb(
   id: string,

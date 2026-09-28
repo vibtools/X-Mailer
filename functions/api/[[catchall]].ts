@@ -1243,8 +1243,23 @@ export async function onRequest(context: EventContext): Promise<Response> {
           lastTested,
           testStatusMsg,
           userId,
+          provider_type,
+          providerType,
+          smtp_host,
+          smtpHost,
+          smtp_port,
+          smtpPort,
+          smtp_secure,
+          smtpSecure,
+          smtp_user,
+          smtpUser,
+          smtp_pass,
+          smtpPass,
         } = body;
-        if (!name || !key) {
+        
+        const isSmtp = (provider_type || providerType) === 'smtp';
+
+        if (!name || (!key && !isSmtp)) {
           return errorResponse("API name and key are required", 400);
         }
         const apiId =
@@ -1252,8 +1267,8 @@ export async function onRequest(context: EventContext): Promise<Response> {
         const nowIso = new Date().toISOString().split("T")[0];
         await runQuery(
           env,
-          `INSERT INTO neon_apis (id, user_id, name, key, sender_email, daily_limit, used_today, status, last_tested, test_status_msg, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+          `INSERT INTO neon_apis (id, user_id, name, key, sender_email, daily_limit, used_today, status, last_tested, test_status_msg, created_at, provider_type, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, $12, $13, $14, $15, $16)
            ON CONFLICT (id) DO UPDATE SET
              user_id = EXCLUDED.user_id,
              name = EXCLUDED.name,
@@ -1263,18 +1278,30 @@ export async function onRequest(context: EventContext): Promise<Response> {
              used_today = EXCLUDED.used_today,
              status = EXCLUDED.status,
              last_tested = EXCLUDED.last_tested,
-             test_status_msg = EXCLUDED.test_status_msg;`,
+             test_status_msg = EXCLUDED.test_status_msg,
+             provider_type = EXCLUDED.provider_type,
+             smtp_host = EXCLUDED.smtp_host,
+             smtp_port = EXCLUDED.smtp_port,
+             smtp_secure = EXCLUDED.smtp_secure,
+             smtp_user = EXCLUDED.smtp_user,
+             smtp_pass = EXCLUDED.smtp_pass;`,
           [
             apiId,
             userId || "",
             name,
-            key,
+            key || "",
             senderEmail || "",
             Number(dailyLimit) || 1000,
             Number(usedToday) || 0,
             status || "active",
             lastTested || "Just now",
             testStatusMsg || "",
+            (provider_type || providerType) || "resend",
+            (smtp_host || smtpHost) || null,
+            (smtp_port !== undefined ? smtp_port : smtpPort) || 587,
+            (smtp_secure !== undefined ? smtp_secure : smtpSecure) || false,
+            (smtp_user || smtpUser) || null,
+            (smtp_pass || smtpPass) || null,
           ],
         );
 
@@ -1336,6 +1363,18 @@ export async function onRequest(context: EventContext): Promise<Response> {
           lastTested,
           testStatusMsg,
           userId,
+          provider_type,
+          providerType,
+          smtp_host,
+          smtpHost,
+          smtp_port,
+          smtpPort,
+          smtp_secure,
+          smtpSecure,
+          smtp_user,
+          smtpUser,
+          smtp_pass,
+          smtpPass,
         } = body;
         await runQuery(
           env,
@@ -1348,7 +1387,13 @@ export async function onRequest(context: EventContext): Promise<Response> {
                used_today = COALESCE($6, used_today),
                status = COALESCE($7, status),
                last_tested = COALESCE($8, last_tested),
-               test_status_msg = COALESCE($9, test_status_msg)
+               test_status_msg = COALESCE($9, test_status_msg),
+               provider_type = COALESCE($11, provider_type),
+               smtp_host = COALESCE($12, smtp_host),
+               smtp_port = COALESCE($13, smtp_port),
+               smtp_secure = COALESCE($14, smtp_secure),
+               smtp_user = COALESCE($15, smtp_user),
+               smtp_pass = COALESCE($16, smtp_pass)
            WHERE id = $10`,
           [
             userId ?? null,
@@ -1361,6 +1406,12 @@ export async function onRequest(context: EventContext): Promise<Response> {
             lastTested ?? null,
             testStatusMsg ?? null,
             apiId,
+            (provider_type || providerType) ?? null,
+            (smtp_host || smtpHost) ?? null,
+            (smtp_port !== undefined ? smtp_port : smtpPort) ?? null,
+            (smtp_secure !== undefined ? smtp_secure : smtpSecure) ?? null,
+            (smtp_user || smtpUser) ?? null,
+            (smtp_pass || smtpPass) ?? null,
           ],
         );
         return jsonResponse({ success: true });
